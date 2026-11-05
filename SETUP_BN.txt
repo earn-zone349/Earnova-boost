@@ -1,0 +1,21 @@
+BOOST SITE — সেটআপ (সংক্ষেপে)
+
+ফাইল:
+  index.html       ইউজারদের পেজ (সার্ভিস, অর্ডার, ওয়ালেট)
+  admin.html       তোমার অ্যাডমিন পেজ (/admin.html)
+  js/config.js     এখানে শুধু Supabase URL আর anon key বসাবে
+  _headers         নিরাপত্তার হেডার (Cloudflare Pages নিজে পড়ে নেয়)
+  sql/01_schema.sql ডাটাবেস (Supabase এ একবার চালাবে)
+
+ধাপ (একটা একটা করে, প্রতিটার পর আমাকে জানাও):
+  ১. Supabase এ নতুন প্রজেক্ট খোলো (EARNOVA র প্রজেক্ট না!)
+  ২. SQL Editor এ sql/01_schema.sql চালাও
+  ৩. Authentication → Sign In / Providers → Email → "Confirm email" বন্ধ করো
+  ৪. Project Settings → API থেকে URL ও anon key নিয়ে js/config.js এ বসাও
+  ৫. GitHub এ নতুন রিপো বানিয়ে সব ফাইল তোলো, Cloudflare Pages এ রিপো জোড়ো
+     (Build command: খালি, Output directory: /)
+  ৬. সাইটে নিজে রেজিস্টার করো, তারপর SQL Editor এ:
+        update public.profiles set is_admin = true where email = 'তোমার ইমেইল';
+  ৭. /admin.html এ ঢুকে সেটিংস থেকে bKash/Nagad নম্বর, নোটিশ, দাম ঠিক করো
+
+গোপন রাখবে: service_role key — কখনো কোনো ফাইলে বা চ্যাটে দেবে না।
