@@ -186,6 +186,7 @@
         <div class="bar ${o.status === 'completed' ? 'done' : ''}"><i style="width:${pct}%"></i></div></div>
       <div class="kv"><span>বাকি: <b>${esc(num(remain))}</b></span>${o.start_count != null ? `<span>শুরুর সংখ্যা: <b>${esc(num(o.start_count))}</b></span>` : ''}
         <span>দাম: <b>${esc(money(o.price))}</b></span>${Number(o.refunded) > 0 ? `<span>ফেরত: <b style="color:var(--ok)">${esc(money(o.refunded))}</b></span>` : ''}</div>
+      ${o.synced_at && !['completed', 'cancelled', 'partial'].includes(o.status) ? `<div class="small muted">সর্বশেষ আপডেট: ${esc(dateFmt(o.synced_at))}</div>` : ''}
       ${o.admin_note ? `<div class="small" style="background:var(--bg);border-radius:9px;padding:8px 10px">${esc(o.admin_note)}</div>` : ''}
     </article>`;
   }
