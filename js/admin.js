@@ -96,11 +96,12 @@
 
   /* ───── orders ───── */
   async function viewOrders() {
-    pane().innerHTML = `<div class="filters" id="of"></div><div id="ol"><div class="empty"><span class="spin"></span></div></div>`;
+    pane().innerHTML = `<div class="row" style="gap:8px;margin-bottom:8px"><div class="filters grow" id="of"></div><button class="btn sm" id="syncAll" type="button">🔄 সব সিঙ্ক</button></div><div id="ol"><div class="empty"><span class="spin"></span></div></div>`;
     const fs = [['pending', 'নতুন'], ['processing', 'চলছে'], ['completed', 'সম্পন্ন'], ['partial', 'আংশিক'], ['cancelled', 'বাতিল'], ['all', 'সব']];
     $('#of').innerHTML = fs.map(([k, l]) => `<button class="pill ${S.ordFilter === k ? 'on' : ''}" data-k="${k}" type="button">${l}</button>`).join('');
     $$('#of .pill').forEach((b) => b.onclick = () => { S.ordFilter = b.dataset.k; viewOrders(); });
-    let q = sb.from('orders').select('*, profiles(email,full_name)').order('created_at', { ascending: false }).limit(100);
+    $('#syncAll').onclick = (e) => busy(e.currentTarget, () => syncOrders(null));
+    let q = sb.from('orders').select('*, profiles(email,full_name), order_links(task_id)').order('created_at', { ascending: false }).limit(100);
     if (S.ordFilter !== 'all') q = q.eq('status', S.ordFilter);
     const { data, error } = await q;
     if (error) { $('#ol').innerHTML = `<div class="empty">${esc(errMsg(error))}</div>`; return; }
@@ -113,9 +114,27 @@
         <div class="linkline">${linkHtml(o.link)}</div>
         <div class="kv"><span>পরিমাণ: <b>${esc(num(o.quantity))}</b></span><span>দাম: <b>${esc(money(o.price))}</b></span><span>ডেলিভারি: <b>${esc(num(o.delivered))}</b></span>${o.start_count != null ? `<span>শুরু: <b>${esc(num(o.start_count))}</b></span>` : ''}${Number(o.refunded) > 0 ? `<span>ফেরত: <b>${esc(money(o.refunded))}</b></span>` : ''}</div>
         ${o.admin_note ? `<div class="small">নোট: ${esc(o.admin_note)}</div>` : ''}
-        ${final ? '' : `<button class="btn sm" data-ed="${esc(o.id)}" type="button">আপডেট করুন</button>`}</article>`;
+        ${o.synced_at ? `<div class="small muted">সর্বশেষ সিঙ্ক: ${esc(dateFmt(o.synced_at))}</div>` : ''}
+        ${final ? '' : `<div class="row" style="gap:6px;flex-wrap:wrap"><input class="in" style="max-width:110px" data-tk="${esc(o.id)}" placeholder="EARNOVA টাস্ক নং" maxlength="64" value="${esc((o.order_links && o.order_links.task_id) || '')}">
+          <button class="btn sm" data-tks="${esc(o.id)}" type="button">সেট</button>
+          <button class="btn sm" data-sy="${esc(o.id)}" type="button">🔄 সিঙ্ক</button>
+          <button class="btn sm" data-ed="${esc(o.id)}" type="button">আপডেট করুন</button></div>`}</article>`;
     }).join('') + '</div>';
     $$('[data-ed]').forEach((b) => b.onclick = () => editOrder(data.find((x) => x.id === Number(b.dataset.ed))));
+    $$('[data-tks]').forEach((b) => b.onclick = () => busy(b, async () => {
+      const id = Number(b.dataset.tks), inp = document.querySelector('[data-tk="' + id + '"]');
+      const { error } = await sb.rpc('admin_set_order_task', { p_order: id, p_task: inp.value.trim() });
+      if (error) { toast(errMsg(error), 'bad'); return; }
+      toast(inp.value.trim() ? 'টাস্ক নম্বর সেট হয়েছে।' : 'টাস্ক নম্বর সরানো হয়েছে।', 'ok');
+    }));
+    $$('[data-sy]').forEach((b) => b.onclick = () => busy(b, () => syncOrders(Number(b.dataset.sy))));
+  }
+  async function syncOrders(orderId) {
+    const { data, error } = await sb.functions.invoke('sync-progress', { body: orderId ? { order_id: orderId } : {} });
+    if (error || !data || !data.ok) { toast('সিঙ্ক হয়নি — Edge Function ও Secrets ঠিক আছে কিনা দেখুন।', 'bad'); return; }
+    const bad = (data.results || []).filter((r) => r.error).length;
+    toast(data.checked ? `${num(data.updated)}টি আপডেট হয়েছে` + (bad ? `, ${num(bad)}টিতে টাস্ক খুঁজে পাওয়া যায়নি` : '') + '।' : 'সিঙ্ক করার মতো অর্ডার নেই (টাস্ক নম্বর সেট করুন)।', bad ? 'bad' : 'ok');
+    await refreshDash(); viewOrders();
   }
   function editOrder(o) {
     if (!o) return;
