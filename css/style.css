@@ -72,7 +72,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---------- hero ---------- */
 .hero2{position:relative;overflow:hidden;border-radius:24px;border:1px solid var(--line);padding:34px 32px;min-height:240px;color:#fff;
   background:radial-gradient(ellipse at 85% 45%,rgba(52,240,74,.30),transparent 55%),linear-gradient(135deg,#072620,#040f0e 62%);box-shadow:0 0 44px rgba(52,240,74,.13)}
-.hero2 .txt{position:relative;z-index:2;max-width:min(560px,56%)}
+.hero2 .txt{position:relative;z-index:2;max-width:min(560px,50%)}
 .hero2 h1{font-size:clamp(26px,4.4vw,42px);font-style:italic;font-weight:800;line-height:1.2;margin:0 0 10px}
 .hl{color:#4dff5c;text-shadow:0 0 22px rgba(52,240,74,.55)}
 .hero2 p{color:#c4d8cf;margin:0 0 14px;max-width:520px}
@@ -269,11 +269,6 @@ footer{padding:26px 0 40px;color:var(--muted);font-size:13px;text-align:center}
 /* হিরো: ব্যানার ছোট হলে লেখা যেন ফোন-ছবির ওপর না চড়ে (container query) */
 .hero2{container-type:inline-size;container-name:hero}
 .hero2 h1{font-size:clamp(22px,5.4cqw,42px)}
-@container hero (max-width:760px){
-  .hero2 .txt{max-width:62%}
-  .hero2 p,.hero2 .checks{display:none}
-  .hero2 h1{margin-bottom:16px}
-}
 
 /* ======== মোবাইল ও ডেস্কটপ — দুটোতেই ফিট ======== */
 #hdrRight{display:inline-flex;align-items:center;gap:6px}
@@ -292,7 +287,7 @@ footer{padding:26px 0 40px;color:var(--muted);font-size:13px;text-align:center}
 
 /* হিরো — মাঝারি ব্যানারে লেখা ছোট (পাশাপাশি), ছোট ব্যানারে ছবি উপরে + লেখা নিচে (মুকুটসহ পুরো ছবি দেখা যায়) */
 .hero2.has-img{background-position:right center}
-@container hero (max-width:560px){
+@container hero (max-width:860px){
   .hero2{display:block;padding:0;min-height:0}
   .hero2 .txt{max-width:none;padding:4px 20px 24px}
   .hero2 p{display:block;font-size:14px}
@@ -317,3 +312,11 @@ html.has-bg{background:var(--bg)}
 html.has-bg body{background:transparent}
 html.has-bg body:before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(4,11,12,.80),rgba(4,11,12,.88)),url(../images/bg.jpg) center/cover no-repeat}
 html.has-bg[data-theme="light"] body:before{background:linear-gradient(rgba(238,246,241,.86),rgba(238,246,241,.92)),url(../images/bg.jpg) center/cover no-repeat}
+
+/* মোবাইলের উপরের বারে লোগো: মুকুট উপরে, নিচে নাম (সাইডবারের মতো) */
+.topbar .mbrand .mcrown{width:44px;height:auto;flex:none;filter:drop-shadow(0 0 10px rgba(255,200,40,.6))}
+.topbar .mbrand .mcrown.fb,.topbar .mbrand>span.fb{font-size:24px;line-height:1}
+@media (max-width:900px){
+  .topbar .mbrand{display:flex;flex-direction:column;align-items:flex-start;gap:0;line-height:1.05}
+  .topbar .mbrand>span{margin-top:-2px}
+}
