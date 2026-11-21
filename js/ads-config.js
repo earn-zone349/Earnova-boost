@@ -22,34 +22,100 @@ window.ADS_CONFIG = {
   linkTitle: 'বিশেষ অফার দেখুন',   // Direct Link কার্ডের লেখা
 
   /* ---- পুরো সাইটে (সব পেজে) একবার করে চলে ---- */
-  socialBar: ``,            // Social Bar এর কোড
-  popunder:  ``,            // Popunder এর কোড
+  socialBar: `<script data-cfasync="false" src="https://bicea.org/14/f014edb7473f3c2aeebae2ae6d3313ae"></script>`,            // Social Bar এর কোড
+  popunder:  `<script data-cfasync="false" src="https://afders.org/1/ae60dc0ec9735f23490b70a5c5c9d865"></script>`,            // Popunder এর কোড
 
   /* ---- বাম সাইডবারের ব্যানার (300x250), সব পেজে একই ---- */
-  sidebar: ``,
+  sidebar: `<script>
+  atOptions = {
+    'key' : '28cc7969921e4d636d29ed0f593c94bb',
+    'format' : 'iframe',
+    'height' : 250,
+    'width' : 300,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/28cc7969921e4d636d29ed0f593c94bb"></script>`,
 
   /* ---- প্রতিটা পেজের নিজস্ব বিজ্ঞাপন ---- */
   pages: {
     /* হোম / সার্ভিস / নতুন অর্ডার পেজ */
     home: {
-      top:    ``,   // উপরের ব্যানার (728x90)
-      native: ``,   // মাঝখানের Native Banner
-      bottom: ``,   // নিচের ব্যানার (728x90)
-      link:   ``    // Direct Link — শুধু URL, যেমন https://example.com/abc
+      top:    `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,   // উপরের ব্যানার (728x90)
+      native: `<script async="async" data-cfasync="false" src="https://bicea.org/21/8f19e53648342de6aae2e803bf00d74f"></script>
+<div id="container-8f19e53648342de6aae2e803bf00d74f"></div>`,   // মাঝখানের Native Banner
+      bottom: `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,   // নিচের ব্যানার (728x90)
+      link:   `https://arwf.org/4/cf95826647b23fd83423a409afbb7b70`    // Direct Link — শুধু URL, যেমন https://example.com/abc
     },
     /* আমার অর্ডার পেজ */
     orders: {
-      top:    ``,
-      native: ``,
-      bottom: ``,
-      link:   ``
+      top:    `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,
+      native: `<script async="async" data-cfasync="false" src="https://bicea.org/21/8f19e53648342de6aae2e803bf00d74f"></script>
+<div id="container-8f19e53648342de6aae2e803bf00d74f"></div>`,
+      bottom: `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,
+      link:   `https://arwf.org/4/cf95826647b23fd83423a409afbb7b70`
     },
     /* ওয়ালেট / টাকা জমা পেজ */
     wallet: {
-      top:    ``,
-      native: ``,
-      bottom: ``,
-      link:   ``
+      top:    `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,
+      native: `<script async="async" data-cfasync="false" src="https://bicea.org/21/8f19e53648342de6aae2e803bf00d74f"></script>
+<div id="container-8f19e53648342de6aae2e803bf00d74f"></div>`,
+      bottom: `<script>
+  atOptions = {
+    'key' : '05de21f66a18792cc6ba44dc8a7b665e',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://bicea.org/22/05de21f66a18792cc6ba44dc8a7b665e"></script>`,
+      link:   `https://arwf.org/4/cf95826647b23fd83423a409afbb7b70`
     }
   }
 };
