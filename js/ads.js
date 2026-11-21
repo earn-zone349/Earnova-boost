@@ -55,6 +55,22 @@
   });
   window.addEventListener('resize', () => frames.forEach((r) => { if (r.slot.isConnected) fit(r); }));
 
+  /* বিজ্ঞাপন না এলে ফাঁকা জায়গা লুকিয়ে দিই (৬, ১৫, ৩০ সেকেন্ড পর দেখি); পরে এলে আবার দেখাই */
+  function filled(rec) {
+    try {
+      const d = rec.el.contentDocument; if (!d || !d.body) return true;
+      return Array.from(d.body.querySelectorAll('iframe,img,canvas,ins,video,a,div,svg')).some((n) => n.offsetWidth > 20 && n.offsetHeight > 20);
+    } catch (e) { return true; }
+  }
+  function watch(rec) {
+    [6000, 15000, 30000].forEach((ms) => setTimeout(() => {
+      if (!rec.slot.isConnected) return;
+      const ok = filled(rec);
+      rec.slot.style.display = ok ? '' : 'none';
+      if (!ok && ms === 30000) console.warn('[BXAds] কোনো বিজ্ঞাপন লোড হয়নি:', rec.path);
+    }, ms));
+  }
+
   function mountOne(slot) {
     if (slot.dataset.done) return;
     if (!slot.getClientRects().length) return;                 // লুকানো জায়গায় (যেমন মোবাইলে সাইডবার) বিজ্ঞাপন লোড করব না
@@ -81,7 +97,9 @@
     const html = asHtml(code), id = ++uid, sz = isNative ? [0, 160] : sizeOf(html, key, slot.dataset.size);
     const box = document.createElement('div'); box.className = 'adbox';
     const el = document.createElement('iframe');
-    el.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation');
+    /* same-origin রাখি (নইলে বিজ্ঞাপন ফাঁকা থাকে), কিন্তু ক্লিক ছাড়া পুরো সাইট অন্য পেজে সরিয়ে নেওয়া (redirect) আটকাই।
+       পুরো বন্ধ করতে ads-config.js এ sandboxBanners: false দাও। */
+    if (C.sandboxBanners !== false) el.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation');
     el.setAttribute('scrolling', 'no'); el.setAttribute('title', 'বিজ্ঞাপন');
     if (isNative) { box.style.width = '100%'; el.style.width = '100%'; el.style.height = sz[1] + 'px'; }
     else { el.style.width = sz[0] + 'px'; el.style.height = sz[1] + 'px'; }
@@ -89,13 +107,17 @@
     box.appendChild(el);
     const lbl = document.createElement('div'); lbl.className = 'adlbl'; lbl.textContent = 'বিজ্ঞাপন';
     slot.appendChild(lbl); slot.appendChild(box);
-    const rec = { el, box, slot, w: sz[0], h: sz[1], native: isNative };
-    frames.set(id, rec); fit(rec);
+    const rec = { el, box, slot, path, w: sz[0], h: sz[1], native: isNative };
+    frames.set(id, rec); fit(rec); watch(rec);
   }
-  function mount(root) { (root || document).querySelectorAll('.adslot').forEach(mountOne); }
+  function mount(root) {
+    try {
+      (root || document).querySelectorAll('.adslot').forEach((s) => { try { mountOne(s); } catch (e) { console.warn('[BXAds] স্লট বাদ:', e); } });
+    } catch (e) { console.warn('[BXAds]', e); }
+  }
 
   /* ───────── Social Bar: পুরো সাইটে একবার ───────── */
-  function startSocialBar() { const s = asHtml(C.socialBar); if (s) injectSnippet(s, document.body); }
+  function startSocialBar() { try { const s = asHtml(C.socialBar); if (s) injectSnippet(s, document.body); } catch (e) { console.warn('[BXAds] social bar', e); } }
 
   /* ───────── Popunder: সময়ের নিয়ম ─────────
      ক্লিক ১ → পপ (১ম) → gap1 বন্ধ → ক্লিক → পপ (২য়) → gap2 বন্ধ → আবার ১ম
@@ -151,7 +173,7 @@
   }
   window.addEventListener('click', onClick, true);
 
-  function start() { startSocialBar(); if (str(C.popunder)) arm(); }
+  function start() { startSocialBar(); try { if (str(C.popunder)) arm(); } catch (e) { console.warn('[BXAds] popunder', e); } }
   if (document.readyState === 'complete') setTimeout(start, 300); else window.addEventListener('load', () => setTimeout(start, 300));
 
   window.BXAds = { mount };
