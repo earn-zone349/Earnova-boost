@@ -72,7 +72,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---------- hero ---------- */
 .hero2{position:relative;overflow:hidden;border-radius:24px;border:1px solid var(--line);padding:34px 32px;min-height:240px;color:#fff;
   background:radial-gradient(ellipse at 85% 45%,rgba(52,240,74,.30),transparent 55%),linear-gradient(135deg,#072620,#040f0e 62%);box-shadow:0 0 44px rgba(52,240,74,.13)}
-.hero2 .txt{position:relative;z-index:2;max-width:560px}
+.hero2 .txt{position:relative;z-index:2;max-width:min(560px,56%)}
 .hero2 h1{font-size:clamp(26px,4.4vw,42px);font-style:italic;font-weight:800;line-height:1.2;margin:0 0 10px}
 .hl{color:#4dff5c;text-shadow:0 0 22px rgba(52,240,74,.55)}
 .hero2 p{color:#c4d8cf;margin:0 0 14px;max-width:520px}
@@ -265,3 +265,55 @@ footer{padding:26px 0 40px;color:var(--muted);font-size:13px;text-align:center}
 .uchip .nm{display:block;font-weight:700;line-height:1.2;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .uchip .bl{display:block;font-size:12.5px;color:var(--brand);font-weight:800;line-height:1.1}
 @media (max-width:560px){.uchip .nm{display:none}.uchip{padding-right:10px}}
+
+/* হিরো: ব্যানার ছোট হলে লেখা যেন ফোন-ছবির ওপর না চড়ে (container query) */
+.hero2{container-type:inline-size;container-name:hero}
+.hero2 h1{font-size:clamp(22px,5.4cqw,42px)}
+@container hero (max-width:760px){
+  .hero2 .txt{max-width:62%}
+  .hero2 p,.hero2 .checks{display:none}
+  .hero2 h1{margin-bottom:16px}
+}
+
+/* ======== মোবাইল ও ডেস্কটপ — দুটোতেই ফিট ======== */
+#hdrRight{display:inline-flex;align-items:center;gap:6px}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;border-radius:10px;color:var(--muted);font-weight:600;font-size:12px;background:none;border:0;cursor:pointer}
+.tabbar button.hide{display:none}
+
+/* উপরের বার: মোবাইলে দুই লাইন (ব্র্যান্ড + থিম + প্রোফাইল / নিচে সার্চ) */
+@media (max-width:900px){
+  .topbar{flex-wrap:wrap;row-gap:10px;column-gap:8px}
+  .topbar .mbrand{order:1;flex:1;min-width:0}
+  .topbar .themebtn{order:2}
+  .topbar #hdrRight{order:3}
+  .topbar>.grow{display:none}
+  .topbar .search{order:4;flex:1 1 100%;max-width:none}
+}
+
+/* হিরো — মাঝারি ব্যানারে লেখা ছোট (পাশাপাশি), ছোট ব্যানারে ছবি উপরে + লেখা নিচে (মুকুটসহ পুরো ছবি দেখা যায়) */
+.hero2.has-img{background-position:right center}
+@container hero (max-width:560px){
+  .hero2{display:block;padding:0;min-height:0}
+  .hero2 .txt{max-width:none;padding:4px 20px 24px}
+  .hero2 p{display:block;font-size:14px}
+  .hero2 .checks{display:flex}
+  .hero2 h1{font-size:clamp(24px,7.2cqw,34px)}
+  .hero2:not(.has-img) .txt{padding-top:26px}
+  .hero2.has-img{background:#040f0e}
+  .hero2.has-img:before{content:"";display:block;height:clamp(190px,58cqw,270px);background:url(../images/hero.png) right center/auto 100% no-repeat;box-shadow:inset 0 -50px 40px -34px #040f0e}
+}
+@media (max-width:640px){
+  .hero2{display:block;padding:0;min-height:0}
+  .hero2 .txt{max-width:none;padding:4px 20px 24px}
+  .hero2 p{display:block;font-size:14px}
+  .hero2 .checks{display:flex}
+  .hero2:not(.has-img) .txt{padding-top:26px}
+  .hero2.has-img{background:#040f0e}
+  .hero2.has-img:before{content:"";display:block;height:clamp(190px,58vw,270px);background:url(../images/hero.png) right center/auto 100% no-repeat;box-shadow:inset 0 -50px 40px -34px #040f0e}
+}
+
+/* ঐচ্ছিক ব্যাকগ্রাউন্ড ছবি (images/bg.jpg) */
+html.has-bg{background:var(--bg)}
+html.has-bg body{background:transparent}
+html.has-bg body:before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(4,11,12,.80),rgba(4,11,12,.88)),url(../images/bg.jpg) center/cover no-repeat}
+html.has-bg[data-theme="light"] body:before{background:linear-gradient(rgba(238,246,241,.86),rgba(238,246,241,.92)),url(../images/bg.jpg) center/cover no-repeat}
