@@ -5,9 +5,14 @@
           openModal, closeModal, busy, linkHtml, authModal, recoveryModal, setupMissing } = window.BX;
   if (!configured || !sb) { setupMissing(); return; }
 
-  const ADS = window.BX.ads || { slot: () => '', mount() {}, init() {}, onLogin: () => false };
-  const S = { user: null, profile: null, services: [], settings: {}, filter: 'all', ordFilter: 'all', timer: null, route: 'home', q: '', orders: [], span: 7 };
-  const ICON = { cart: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 7H6"/></svg>' };
+  const S = { user: null, profile: null, services: [], settings: {}, filter: 'all', ordFilter: 'all', timer: null, route: 'home', q: '', chartData: null };
+
+  /* বিজ্ঞাপনের জায়গা (কোড বসে js/ads-config.js ফাইলে) */
+  const slot = (k, size) => `<div class="adslot" data-ad="${S.route === 'new' ? 'home' : S.route}.${k}"${size ? ` data-size="${size}"` : ''}></div>`;
+  const mountAds = () => { if (window.BXAds) window.BXAds.mount($('#view')); };
+  /* ছবি: images/<নাম>.png থাকলে সেটা, না থাকলে আগের কোড-আঁকা আইকন (fallback) */
+  const img = (name, cls, fb) => /^[\w-]+$/.test(name) ? `<img class="${cls || ''}" src="images/${name}.png" alt="" decoding="async" data-fb="${esc(fb || '')}">` : (fb || '');
+  const pmark = (p) => img(p, 'pimg', platMark(p));
 
   /* ───────────── data ───────────── */
   async function loadSettings() {
@@ -15,9 +20,9 @@
     const o = {}; (data || []).forEach((r) => { o[r.key] = r.value; });
     S.settings = o;
     const name = typeof o.site_name === 'string' && o.site_name ? o.site_name : 'BoostBD';
-    $$('.brandName').forEach((e) => { e.textContent = name; }); document.title = name;
-    const sup = typeof o.support_link === 'string' && /^https:\/\//i.test(o.support_link) ? o.support_link : '';
-    const sl = $('#supportLink'); if (sl) { sl.classList.toggle('hide', !sup); if (sup) sl.href = sup; }
+    $('#brandName').textContent = name; $('#mbrand').textContent = name; document.title = name;
+    const sl = typeof o.support_link === 'string' && /^https:\/\//i.test(o.support_link) ? o.support_link : '';
+    const ss = $('#sideSupport'); if (ss) { if (sl) { ss.href = sl; ss.classList.remove('hide'); } else ss.classList.add('hide'); }
     $('#footTxt').textContent = '© ' + new Date().getFullYear() + ' ' + name;
   }
   async function loadServices() {
@@ -36,140 +41,150 @@
     paintHeader();
   }
 
+  async function doLogout() { await sb.auth.signOut(); toast('লগআউট হয়েছে।'); }
   function paintHeader() {
-    const r = $('#hdrRight'), sa = $('#sideAuth');
-    const out = '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>';
-    const doLogout = async () => { await sb.auth.signOut(); toast('লগআউট হয়েছে।'); };
+    const r = $('#hdrRight'), out = $('#sideLogout');
+    if (out) out.classList.toggle('hide', !S.user);
     if (S.user) {
-      const nm = (S.profile && S.profile.full_name) || (S.user.email || '').split('@')[0] || 'ব্যবহারকারী';
       const bal = S.profile ? money(S.profile.balance) : '…';
-      r.innerHTML = `<a class="chip" href="#/wallet" title="ওয়ালেট">${esc(bal)}</a>
-        <span class="avatar" style="margin-left:8px" title="${esc(S.user.email || '')}"><b>${esc((nm[0] || '?').toUpperCase())}</b><span class="nowrap">${esc(nm.length > 14 ? nm.slice(0, 14) + '…' : nm)}</span></span>`;
-      sa.innerHTML = out + 'লগআউট'; sa.onclick = doLogout;
+      const nm = (S.profile && S.profile.full_name) || (S.user.email || '').split('@')[0] || 'আমি';
+      r.innerHTML = `<a class="uchip" href="#/wallet" title="ওয়ালেট"><span class="av">${esc(Array.from(nm)[0].toUpperCase())}</span><span><span class="nm">${esc(nm)}</span><span class="bl">${esc(bal)}</span></span></a>
+        <button class="btn ghost sm mobonly" id="logoutBtn" type="button" style="margin-left:8px">লগআউট</button>`;
+      $('#logoutBtn').onclick = doLogout;
     } else {
       r.innerHTML = `<button class="btn ghost sm" id="liBtn" type="button">লগইন</button>
         <button class="btn sm" id="suBtn" type="button" style="margin-left:6px">রেজিস্টার</button>`;
       $('#liBtn').onclick = () => authModal(onAuthed, 'in');
       $('#suBtn').onclick = () => authModal(onAuthed, 'up');
-      sa.innerHTML = '<svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>লগইন / রেজিস্টার';
-      sa.onclick = () => authModal(onAuthed, 'in');
     }
   }
-  async function onAuthed() { if (ADS.onLogin()) return; await loadProfile(); route(); }
+  async function onAuthed() { await loadProfile(); route(); }
 
   /* ───────────── router ───────────── */
   function route() {
     clearInterval(S.timer); S.timer = null;
     const h = (location.hash || '#/').replace(/^#\/?/, '');
-    const r = h.startsWith('orders') ? 'orders' : h.startsWith('wallet') ? 'wallet' : h.startsWith('services') ? 'services' : 'home';
+    const r = h.startsWith('orders') ? 'orders' : h.startsWith('wallet') ? 'wallet' : h.startsWith('new') ? 'new' : 'home';
     S.route = r;
     $$('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
-    window.scrollTo(0, 0);
+    if (r !== 'new') window.scrollTo(0, 0);
     if (r === 'orders') return viewOrders();
     if (r === 'wallet') return viewWallet();
-    if (r === 'services') return viewServices();
-    return viewDashboard();
+    return viewHome().then(() => {
+      if (r === 'new') { const e = $('#svcSection'); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
   }
   window.addEventListener('hashchange', route);
 
   function needLogin(msgHtml) {
-    $('#view').innerHTML = `<div class="card center sect"><h2>${msgHtml}</h2>
+    $('#view').innerHTML = `${slot('top')}<div class="card center sect"><h2>${msgHtml}</h2>
       <p class="muted">এই পেজ দেখতে লগইন বা রেজিস্টার করতে হবে।</p>
       <div class="row" style="justify-content:center"><button class="btn" id="nl1" type="button">লগইন</button>
-      <button class="btn ghost" id="nl2" type="button">রেজিস্টার</button></div></div>`;
+      <button class="btn ghost" id="nl2" type="button">রেজিস্টার</button></div></div>${slot('bottom')}${slot('link')}`;
+    mountAds();
     $('#nl1').onclick = () => authModal(onAuthed, 'in');
     $('#nl2').onclick = () => authModal(onAuthed, 'up');
   }
 
-  /* ───────────── DASHBOARD ───────────── */
-  function trust() {
-    return `<div class="card trust"><div><span>💰</span>দাম আগেই দেখা যায়</div><div><span>📈</span>অর্ডারের অগ্রগতি লাইভ</div>
-      <div><span>↩️</span>বাতিল হলে টাকা ফেরত</div><div><span>🛟</span>সাপোর্টে যোগাযোগ</div></div>`;
-  }
-  function spark(pts, color) {
-    const W = 90, H = 34, max = Math.max(1, ...pts), st = W / Math.max(1, pts.length - 1);
-    const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * st).toFixed(1) + ' ' + (H - 3 - (H - 8) * v / max).toFixed(1)).join(' ');
-    return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  }
-  function platSeries(k) {
-    const today = new Date(); today.setHours(0, 0, 0, 0); const arr = [0, 0, 0, 0, 0, 0, 0];
-    S.orders.forEach((o) => { if (o.platform !== k || o.status === 'cancelled') return; const dd = Math.round((today - new Date(new Date(o.created_at).setHours(0, 0, 0, 0))) / 86400000); if (dd >= 0 && dd < 7) arr[6 - dd] += Number(o.quantity) || 0; });
-    return arr;
-  }
-  function chartSvg(pts, labels) {
-    const W = 640, H = 220, L = 40, R = 12, T = 14, B = 28, max = Math.max(1, ...pts), step = (W - L - R) / Math.max(1, pts.length - 1);
-    const nice = (() => { const m = Math.pow(10, Math.floor(Math.log10(max))); return Math.ceil(max / m) * m; })();
-    const y = (v) => T + (H - T - B) * (1 - v / nice), x = (i) => L + step * i;
-    const line = pts.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
-    const area = line + ` L${x(pts.length - 1).toFixed(1)} ${H - B} L${x(0).toFixed(1)} ${H - B} Z`;
-    const grid = [0, .25, .5, .75, 1].map((f) => `<line class="gl" x1="${L}" x2="${W - R}" y1="${y(nice * f).toFixed(1)}" y2="${y(nice * f).toFixed(1)}"/><text x="${L - 6}" y="${(y(nice * f) + 4).toFixed(1)}" text-anchor="end">${esc(num(Math.round(nice * f)))}</text>`).join('');
-    const every = Math.ceil(pts.length / 7);
-    const xl = labels.map((t, i) => (i % every === 0 || i === labels.length - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(t)}</text>` : '').join('');
-    const dots = pts.length <= 14 ? pts.map((v, i) => `<circle class="dt" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5"/>`).join('') : '';
-    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="অর্ডারের পরিমাণের চার্ট"><defs><linearGradient id="cg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--brand)" stop-opacity=".35"/><stop offset="1" stop-color="var(--brand)" stop-opacity="0"/></linearGradient></defs>${grid}<path class="ar" d="${area}"/><path class="ln" d="${line}"/>${dots}${xl}</svg>`;
-  }
-  function paintChart() {
-    const el = $('#chartBox'); if (!el) return;
-    const n = S.span, today = new Date(); today.setHours(0, 0, 0, 0);
-    const days = [], pts = [], key = (d) => d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
-    for (let i = n - 1; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(d); pts.push(0); }
-    const idx = {}; days.forEach((d, i) => { idx[key(d)] = i; });
-    S.orders.forEach((o) => { if (o.status === 'cancelled') return; const k = key(new Date(o.created_at)); if (k in idx) pts[idx[k]] += Number(o.quantity) || 0; });
-    el.innerHTML = chartSvg(pts, days.map((d) => d.toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })));
-    $$('#spanSeg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === n));
-  }
-  async function viewDashboard() {
+  /* ───────────── HOME ───────────── */
+  async function viewHome() {
     const v = $('#view');
-    const notice = typeof S.settings.notice === 'string' && S.settings.notice.trim() ? `<div class="notice">${esc(S.settings.notice)}</div>` : '';
-    v.innerHTML = `${ADS.slot('home_top')}${notice}
-      <section class="hero2"><img class="heroimg" src="img/hero.png" alt="" onerror="this.remove()"><div class="orbit" aria-hidden="true"><span class="plat o1" style="background:#1877f2">f</span><span class="plat o2" style="background:#e11d1d">▶</span><span class="plat o3" style="background:#d62976">◎</span><span class="plat o4" style="background:#0f172a">♪</span></div>
-        <h1>সোশ্যাল মিডিয়ায় এগিয়ে যান,<br><em>অনলাইন উপস্থিতি বাড়ান</em></h1>
+    S.chartData = null;
+    const tiles = Object.values(PLATFORMS).slice(0, 4).map((p, i) => `<div class="tile t${i + 1}" style="background:${esc(p.color)}">${esc(p.mark)}</div>`).join('');
+    v.innerHTML = `<section class="hero2" id="hero"><div class="txt">
+        <h1>সোশ্যাল মিডিয়ায়<br><span class="hl">এগিয়ে যান</span></h1>
         <p>Facebook, YouTube, TikTok ও Instagram এর ফলোয়ার, লাইক ও ভিউ — দাম আগেই দেখুন, নিজের ওয়ালেট থেকে অর্ডার করুন, আর অর্ডারের অগ্রগতি সরাসরি দেখুন।</p>
-        <ul class="checks"><li>দাম আগেই দেখুন</li><li>লাইভ অগ্রগতি</li><li>সহজ পেমেন্ট</li><li>বাতিলে টাকা ফেরত</li></ul>
-        <a class="btn cta" href="#/services">অর্ডার শুরু করুন →</a></section>
-      <div class="grid g4 sect" id="stats"><div class="empty" style="grid-column:1/-1"><span class="spin"></span></div></div>
-      <div class="dash2 sect"><div class="card chartcard" id="chartCard"></div><div class="card"><div class="row" style="margin-bottom:6px"><h2 class="grow" style="margin:0;font-size:17px">আমাদের সার্ভিস</h2><a class="small" href="#/services">সব দেখুন →</a></div><div class="svlist" id="svTop"><div class="empty"><span class="spin"></span></div></div></div></div>
-      ${ADS.slot('home_mid')}
-      <div class="sect">${trust()}</div>${ADS.slot('home_bottom')}`;
-    ADS.mount(v);
-    try { await loadServices(); } catch (e) { $('#svTop').innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; }
-    if (S.route !== 'home' || !$('#svTop')) return;
-    $('#svTop').innerHTML = S.services.slice(0, 6).map((x) => `<button class="svrow" type="button" data-order="${esc(x.id)}">${platMark(x.platform)}<span><b>${esc(x.name)}</b><br><span class="muted small">${esc(num(x.min_qty))}–${esc(num(x.max_qty))}</span></span><span class="p">${esc(money(x.price_per_1000))}<small class="muted"> /১০০০</small></span></button>`).join('') || '<div class="empty">এখন কোনো সার্ভিস নেই।</div>';
-    $$('#svTop [data-order]').forEach((b) => b.onclick = () => orderModal(Number(b.dataset.order)));
-
-    if (S.user) {
-      const { data } = await sb.from('orders').select('platform,quantity,delivered,status,created_at').order('created_at', { ascending: false }).limit(300);
-      if (S.route !== 'home' || !$('#stats')) return;
-      S.orders = data || [];
-      const by = {}; Object.keys(PLATFORMS).forEach((k) => { by[k] = { d: 0, n: 0 }; });
-      S.orders.forEach((o) => { if (by[o.platform]) { by[o.platform].d += Number(o.delivered) || 0; by[o.platform].n += 1; } });
-      $('#stats').innerHTML = Object.keys(PLATFORMS).map((k) => `<div class="card pstat" style="--pc:${PLATFORMS[k].color === '#0f172a' ? '#25f4ee' : PLATFORMS[k].color}">${platMark(k).replace('class="plat"', 'class="plat lg"')}<div class="grow"><b>${esc(num(by[k].d))}</b><span><strong>${esc(PLATFORMS[k].name)}</strong><br>পাওয়া ডেলিভারি · ${esc(num(by[k].n))}টি অর্ডার</span></div>${spark(platSeries(k), PLATFORMS[k].color === '#0f172a' ? '#25f4ee' : PLATFORMS[k].color)}</div>`).join('');
-      $('#chartCard').innerHTML = `<div class="head"><h2>আপনার অর্ডার (পরিমাণ)</h2><div class="seg" id="spanSeg"><button type="button" data-n="7">৭ দিন</button><button type="button" data-n="30">৩০ দিন</button></div></div><div id="chartBox"></div>`;
-      $$('#spanSeg button').forEach((b) => b.onclick = () => { S.span = Number(b.dataset.n); paintChart(); });
-      paintChart();
-    } else {
-      sb.rpc('get_public_stats').then(({ data }) => {
-        if (!$('#stats')) return;
-        const d = data || {};
-        const items = [['মোট অর্ডার', d.orders_total], ['এখন চলছে', d.orders_active], ['সম্পন্ন অর্ডার', d.orders_completed], ['মোট ডেলিভারি', d.units_delivered]];
-        $('#stats').innerHTML = items.map(([l, x]) => `<div class="card stat"><b>${esc(num(x || 0))}</b><span>${esc(l)}</span></div>`).join('');
-      });
-      $('#chartCard').innerHTML = `<h2 style="font-size:17px">আপনার অর্ডার</h2><div class="empty">লগইন করলে এখানে আপনার অর্ডারের চার্ট দেখতে পাবেন।<br><button class="btn sm" id="chLi" type="button" style="margin-top:10px">লগইন / রেজিস্টার</button></div>`;
-      $('#chLi').onclick = () => authModal(onAuthed, 'in');
-    }
+        <div class="checks"><span>দাম আগেই দেখুন</span><span>নিজের ওয়ালেট থেকে অর্ডার</span><span>অর্ডারের অগ্রগতি সরাসরি</span></div>
+        <a class="btn glow" href="#/new">অর্ডার শুরু করুন →</a></div>
+        <div class="hero-art" aria-hidden="true"><div class="ring"></div>${tiles}</div></section>
+      <div id="noticeBox"></div>
+      ${slot('top')}
+      <div class="grid g4 sect" id="stats"></div>
+      <div class="dash sect">
+        <section class="card" id="panelL"></section>
+        <section class="card"><div class="ptitle">${img('rocket', 'ptic', '🚀')} জনপ্রিয় সার্ভিস<a class="small" style="margin-left:auto" href="#/new">সব দেখুন →</a></div><div class="qlist" id="qlist"><div class="empty"><span class="spin"></span></div></div></section>
+      </div>
+      <div class="sect" id="svcSection"><h2>সার্ভিস ও দাম</h2>
+        <div class="filters" id="filters"></div>
+        <div class="grid g3" id="svcGrid"><div class="empty"><span class="spin"></span></div></div></div>
+      ${slot('native')}
+      ${slot('bottom')}
+      ${slot('link')}
+      ${trustHtml()}`;
+    mountAds();
+    /* ঐচ্ছিক: images/hero.png ফাইল থাকলে হিরো ব্যানারে সেই ছবি দেখাবে */
+    const im = new Image();
+    im.onload = () => { const h = $('#hero'); if (h) h.classList.add('has-img'); };
+    im.src = 'images/hero.png';
+    const n = S.settings.notice;
+    if (typeof n === 'string' && n.trim()) $('#noticeBox').innerHTML = `<div class="notice">${esc(n)}</div>`;
+    paintPanelL();
+    try { await loadServices(); } catch (e) { $('#svcGrid').innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; $('#qlist').innerHTML = ''; return; }
+    paintQuick(); paintFilters(); paintServices();
+    sb.rpc('get_public_stats').then(({ data }) => {
+      if (!data || !$('#stats')) return;
+      const items = [['মোট অর্ডার', data.orders_total, 'cart', '📦'], ['এখন চলছে', data.orders_active, 'bolt', '⚡'], ['সম্পন্ন অর্ডার', data.orders_completed, 'check', '✅'], ['মোট ডেলিভারি', data.units_delivered, 'rocket', '🚀']];
+      $('#stats').innerHTML = items.map(([l, x, nm, ic], i) => `<div class="stat c${i + 1}"><div class="si" aria-hidden="true">${img(nm, '', ic)}</div><div><b>${esc(num(x))}</b><span>${esc(l)}</span></div></div>`).join('');
+    });
   }
-
-  /* ───────────── NEW ORDER (services) ───────────── */
-  async function viewServices() {
-    const v = $('#view');
-    v.innerHTML = `${ADS.slot('services_top')}<div class="sect" style="margin-top:6px"><h2>নতুন অর্ডার — সার্ভিস ও দাম</h2>
-      <div class="filters" id="filters"></div>
-      <div class="grid g3" id="svcGrid"><div class="empty"><span class="spin"></span></div></div></div>
-      ${ADS.slot('services_mid')}${ADS.slot('services_bottom')}`;
-    ADS.mount(v);
-    try { await loadServices(); } catch (e) { $('#svcGrid').innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
-    if (S.route !== 'services' || !$('#svcGrid')) return;
-    paintFilters(); paintServices();
+  function trustHtml() {
+    const sup = typeof S.settings.support_link === 'string' && /^https:\/\//i.test(S.settings.support_link);
+    const it = [['shield', '🛡️', 'নিজের ওয়ালেট', 'আপনার ব্যালেন্স, আপনার নিয়ন্ত্রণে'], ['bolt', '⚡', 'লাইভ অর্ডার ট্র্যাক', 'অগ্রগতি সরাসরি দেখুন']];
+    if (sup) it.push(['headset', '🎧', 'সাপোর্ট', 'সমস্যায় যোগাযোগ করুন']);
+    it.push(['diamond', '💎', 'দাম আগেই দেখুন', 'অর্ডারের আগেই মোট দাম']);
+    return `<div class="trust sect">${it.map(([n, e, t, s]) => `<div class="ti">${img(n, '', e)}<div><b>${esc(t)}</b><span>${esc(s)}</span></div></div>`).join('')}</div>`;
+  }
+  function paintQuick() {
+    const el = $('#qlist'); if (!el) return;
+    el.innerHTML = S.services.slice(0, 5).map((s) => `<a data-qo="${esc(s.id)}" role="button" tabindex="0">${pmark(s.platform)}<span>${esc(s.name)}</span><span class="p">${esc(money(s.price_per_1000))}</span></a>`).join('') || '<div class="empty">এখন কোনো সার্ভিস নেই।</div>';
+    $$('[data-qo]').forEach((a) => { a.onclick = () => orderModal(Number(a.dataset.qo)); a.onkeydown = (e) => { if (e.key === 'Enter') orderModal(Number(a.dataset.qo)); }; });
+  }
+  function paintPanelL() {
+    const el = $('#panelL'); if (!el) return;
+    if (!S.user) {
+      el.innerHTML = `<div class="ptitle">📋 কীভাবে কাজ করে</div><div class="steps">
+        <div class="step"><i>১</i><div><b>রেজিস্টার করুন</b><span class="muted small">অ্যাকাউন্ট খুলুন।</span></div></div>
+        <div class="step"><i>২</i><div><b>টাকা জমা দিন</b><span class="muted small">ওয়ালেটে ব্যালেন্স যোগ করুন।</span></div></div>
+        <div class="step"><i>৩</i><div><b>অর্ডার করুন</b><span class="muted small">লিংক ও পরিমাণ দিন, অগ্রগতি দেখুন।</span></div></div></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="ptitle">📊 আপনার অর্ডার<div class="rng"><button class="on" data-d="7" type="button">৭ দিন</button><button data-d="30" type="button">৩০ দিন</button></div></div><div id="chartBox"><div class="empty"><span class="spin"></span></div></div>`;
+    const btns = el.querySelectorAll('.rng button');
+    btns.forEach((b) => { b.onclick = () => { btns.forEach((x) => x.classList.toggle('on', x === b)); drawChart(Number(b.dataset.d)); }; });
+    drawChart(7);
+  }
+  async function drawChart(days) {
+    const box = $('#chartBox'); if (!box) return;
+    if (!S.chartData) {
+      const since = new Date(Date.now() - 30 * 864e5).toISOString();
+      const { data, error } = await sb.from('orders').select('created_at,price').gte('created_at', since).order('created_at', { ascending: false }).limit(1000);
+      if (!$('#chartBox')) return;
+      if (error) { box.innerHTML = `<div class="empty">${esc(errMsg(error))}</div>`; return; }
+      S.chartData = data || [];
+    }
+    const key = (d) => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    const base = new Date(); base.setHours(0, 0, 0, 0);
+    const list = [];
+    for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); list.push({ d, k: key(d), c: 0 }); }
+    const idx = {}; list.forEach((x, i) => { idx[x.k] = i; });
+    let total = 0, spend = 0;
+    S.chartData.forEach((o) => { const i = idx[key(new Date(o.created_at))]; if (i != null) { list[i].c++; total++; spend += Number(o.price) || 0; } });
+    const W = 600, H = 220, L = 34, R = 12, T = 14, B = 28, iw = W - L - R, ih = H - T - B;
+    const max = Math.max(1, ...list.map((x) => x.c)), step = Math.ceil(max / 4), top = step * 4;
+    const X = (i) => L + (list.length > 1 ? iw * i / (list.length - 1) : iw / 2), Y = (v) => T + ih - ih * v / top;
+    const pts = list.map((x, i) => [X(i), Y(x.c)]);
+    const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    const area = line + ` L${X(list.length - 1).toFixed(1)} ${T + ih} L${X(0).toFixed(1)} ${T + ih} Z`;
+    let grid = '';
+    for (let k = 0; k <= 4; k++) { const v = step * k, y = Y(v).toFixed(1); grid += `<line class="gr" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${(Number(y) + 4).toFixed(1)}" text-anchor="end">${v}</text>`; }
+    const every = Math.ceil(list.length / 7);
+    const labels = list.map((x, i) => (i % every === 0 || i === list.length - 1) ? `<text x="${X(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${x.d.getDate()}/${x.d.getMonth() + 1}</text>` : '').join('');
+    const dots = pts.map((q) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3" style="fill:var(--brand)"/>`).join('');
+    const lc = list[list.length - 1].c, lx = X(list.length - 1), ly = Y(lc), bx = Math.min(W - 40, Math.max(L + 30, lx)), by = Math.max(2, ly - 32);
+    const bubble = `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6" style="fill:var(--brand);stroke:var(--card);stroke-width:2"/><rect x="${(bx - 30).toFixed(1)}" y="${by.toFixed(1)}" width="60" height="22" rx="11" style="fill:var(--card);stroke:var(--brand);stroke-width:1.5"/><text x="${bx.toFixed(1)}" y="${(by + 15).toFixed(1)}" text-anchor="middle" style="fill:var(--text);font-weight:700;font-size:12px">${esc(num(lc))} আজ</text>`;
+    box.innerHTML = `<div class="muted small" style="margin-bottom:6px">${esc(num(total))} টি অর্ডার · ${esc(money(spend))}</div>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="অর্ডারের চার্ট"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--brand);stop-opacity:.35"/><stop offset="1" style="stop-color:var(--brand);stop-opacity:0"/></linearGradient></defs>
+      ${grid}<path d="${area}" fill="url(#cg)"/><path class="ln" d="${line}"/>${dots}${labels}${bubble}</svg>`;
   }
   function paintFilters() {
     const present = ['all', ...Object.keys(PLATFORMS).filter((p) => S.services.some((s) => s.platform === p))];
@@ -178,12 +193,13 @@
     $$('#filters .pill').forEach((b) => b.onclick = () => { S.filter = b.dataset.f; paintFilters(); paintServices(); });
   }
   function paintServices() {
-    const qq = (S.q || '').trim().toLowerCase();
-    const list = S.services.filter((s) => (S.filter === 'all' || s.platform === S.filter) && (!qq || (s.name + ' ' + s.description + ' ' + ((PLATFORMS[s.platform] || {}).name || '')).toLowerCase().includes(qq)));
-    if (!list.length) { $('#svcGrid').innerHTML = '<div class="empty">' + (qq ? 'এই নামে কোনো সার্ভিস পাওয়া যায়নি।' : 'এখন কোনো সার্ভিস নেই।') + '</div>'; return; }
+    const q = (S.q || '').toLowerCase();
+    const list = S.services.filter((s) => (S.filter === 'all' || s.platform === S.filter) &&
+      (!q || (s.name + ' ' + (s.description || '') + ' ' + ((PLATFORMS[s.platform] || {}).name || '')).toLowerCase().includes(q)));
+    if (!list.length) { $('#svcGrid').innerHTML = `<div class="empty">${q ? 'কিছু পাওয়া যায়নি।' : 'এখন কোনো সার্ভিস নেই।'}</div>`; return; }
     $('#svcGrid').innerHTML = list.map((s) => `
       <article class="card svc">
-        <div class="row">${platMark(s.platform)}<div class="grow"><h3 style="margin:0">${esc(s.name)}</h3>
+        <div class="row">${pmark(s.platform)}<div class="grow"><h3 style="margin:0">${esc(s.name)}</h3>
           <span class="muted small">${esc((PLATFORMS[s.platform] || {}).name || '')}</span></div></div>
         ${s.description ? `<div class="muted small">${esc(s.description)}</div>` : ''}
         <div class="row"><div class="price grow">${esc(money(s.price_per_1000))} <small>/ প্রতি ১০০০</small></div></div>
@@ -234,10 +250,10 @@
   /* ───────────── MY ORDERS ───────────── */
   async function viewOrders() {
     if (!S.user) return needLogin('আপনার অর্ডার');
-    $('#view').innerHTML = `${ADS.slot('orders_top')}<div class="sect"><div class="row"><h2 class="grow" style="margin:0">আমার অর্ডার</h2>
+    $('#view').innerHTML = `${slot('top')}<div class="sect"><div class="row"><h2 class="grow" style="margin:0">আমার অর্ডার</h2>
       <button class="btn ghost sm" id="refresh" type="button">রিফ্রেশ</button></div>
-      <div class="filters" id="ordFilters"></div><div id="ordList"><div class="empty"><span class="spin"></span></div></div></div>${ADS.slot('orders_native')}${ADS.slot('orders_bottom')}`;
-    ADS.mount($('#view'));
+      <div class="filters" id="ordFilters"></div><div id="ordList"><div class="empty"><span class="spin"></span></div></div></div>${slot('native')}${slot('bottom')}${slot('link')}`;
+    mountAds();
     $('#refresh').onclick = () => paintOrders(true);
     await paintOrders(false);
     S.timer = setInterval(() => { if (!document.hidden && S.route === 'orders') paintOrders(true, true); }, 30000);
@@ -263,14 +279,14 @@
     const pct = o.status === 'completed' ? 100 : o.status === 'cancelled' ? 0 : Math.min(100, Math.floor((o.delivered / o.quantity) * 100));
     const remain = ['completed', 'cancelled'].includes(o.status) ? 0 : Math.max(0, o.quantity - o.delivered);
     return `<article class="card" style="display:flex;flex-direction:column;gap:10px">
-      <div class="row">${platMark(o.platform)}<div class="grow"><b>${esc(o.service_name)}</b><div class="muted small">অর্ডার #${esc(num(o.id))} · ${esc(dateFmt(o.created_at))}</div></div>${statusBadge(o.status)}</div>
+      <div class="row">${pmark(o.platform)}<div class="grow"><b>${esc(o.service_name)}</b><div class="muted small">অর্ডার #${esc(num(o.id))} · ${esc(dateFmt(o.created_at))}</div></div>${statusBadge(o.status)}</div>
       <div class="linkline">${linkHtml(o.link)}</div>
       <div><div class="row small" style="margin-bottom:5px"><span>ডেলিভারি <b>${esc(num(o.delivered))}</b> / ${esc(num(o.quantity))}</span><span class="grow"></span><b>${esc(num(pct))}%</b></div>
         <div class="bar ${o.status === 'completed' ? 'done' : ''}"><i style="width:${pct}%"></i></div></div>
       <div class="kv"><span>বাকি: <b>${esc(num(remain))}</b></span>${o.start_count != null ? `<span>শুরুর সংখ্যা: <b>${esc(num(o.start_count))}</b></span>` : ''}
         <span>দাম: <b>${esc(money(o.price))}</b></span>${Number(o.refunded) > 0 ? `<span>ফেরত: <b style="color:var(--ok)">${esc(money(o.refunded))}</b></span>` : ''}</div>
       ${o.synced_at && !['completed', 'cancelled', 'partial'].includes(o.status) ? `<div class="small muted">সর্বশেষ আপডেট: ${esc(dateFmt(o.synced_at))}</div>` : ''}
-      ${o.admin_note ? `<div class="small" style="background:var(--bg);border-radius:9px;padding:8px 10px">${esc(o.admin_note)}</div>` : ''}
+      ${o.admin_note ? `<div class="small" style="background:var(--bg2);border-radius:9px;padding:8px 10px">${esc(o.admin_note)}</div>` : ''}
     </article>`;
   }
 
@@ -281,7 +297,7 @@
     const methods = (Array.isArray(S.settings.deposit_methods) ? S.settings.deposit_methods : []).filter((m) => m && m.active !== false);
     const minDep = Number(S.settings.min_deposit) > 0 ? Number(S.settings.min_deposit) : 50;
     const support = typeof S.settings.support_link === 'string' && /^https:\/\//i.test(S.settings.support_link) ? S.settings.support_link : '';
-    $('#view').innerHTML = `${ADS.slot('wallet_top')}<div class="sect"><div class="card" style="background:linear-gradient(135deg,var(--brand),var(--brand-2));color:var(--brand-text);border:0">
+    $('#view').innerHTML = `${slot('top')}<div class="sect"><div class="card walletcard">
         <div style="opacity:.85">আপনার ব্যালেন্স</div><div style="font-size:34px;font-weight:800">${esc(money(S.profile ? S.profile.balance : 0))}</div></div></div>
       <div class="sect"><h2>টাকা জমা দিন</h2><div class="card">
         ${methods.length ? `
@@ -301,16 +317,17 @@
           <button class="btn block" id="dGo" type="submit" style="margin-top:8px">জমার অনুরোধ পাঠান</button>
         </form>` : '<div class="empty">এখন টাকা জমার ব্যবস্থা চালু নেই।</div>'}
       </div></div>
-      <div class="sect"><h2>জমার ইতিহাস</h2><div class="card scroll" id="depList"><div class="empty"><span class="spin"></span></div></div></div>
+      ${slot('native')}<div class="sect"><h2>জমার ইতিহাস</h2><div class="card scroll" id="depList"><div class="empty"><span class="spin"></span></div></div></div>
       <div class="sect"><h2>লেনদেনের হিসাব</h2><div class="card scroll" id="txList"><div class="empty"><span class="spin"></span></div></div></div>
       <div class="sect"><h2>আমার তথ্য</h2><div class="card"><form id="pf" novalidate>
         <div class="muted small" style="margin-bottom:6px">${esc(S.user.email || '')}</div>
         <label class="f" for="pName">নাম</label><input class="in" id="pName" maxlength="80" value="${esc(S.profile ? S.profile.full_name : '')}">
         <label class="f" for="pPhone">মোবাইল</label><input class="in" id="pPhone" maxlength="20" value="${esc(S.profile ? S.profile.phone : '')}">
         <div class="err" id="pErr"></div><button class="btn" id="pGo" type="submit" style="margin-top:8px">সেভ করুন</button></form></div></div>
-      ${support ? `<p class="center"><a href="${esc(support)}" target="_blank" rel="noopener noreferrer">সাপোর্টে যোগাযোগ করুন</a></p>` : ''}${ADS.slot('wallet_bottom')}`;
-    ADS.mount($('#view'));
+      ${slot('bottom')}${slot('link')}
+      ${support ? `<p class="center"><a href="${esc(support)}" target="_blank" rel="noopener noreferrer">সাপোর্টে যোগাযোগ করুন</a></p>` : ''}`;
 
+    mountAds();
     $$('[data-copy]').forEach((b) => b.onclick = async (e) => {
       e.preventDefault(); e.stopPropagation();
       try { await navigator.clipboard.writeText(b.dataset.copy); toast('নম্বর কপি হয়েছে।', 'ok'); } catch (x) { toast(b.dataset.copy); }
@@ -367,15 +384,16 @@
     if (event === 'SIGNED_OUT') { S.user = null; S.profile = null; paintHeader(); route(); }
   });
   (async function init() {
+    const qi = $('#q');
+    if (qi) qi.addEventListener('input', () => {
+      S.q = qi.value.trim();
+      if (S.route !== 'home' && S.route !== 'new') location.hash = '#/';
+      else if ($('#svcGrid')) paintServices();
+    });
+    const so = $('#sideLogout'); if (so) so.onclick = doLogout;
+    if (window.BXAds) window.BXAds.mount(document.querySelector('.side'));   // সাইডবার ব্যানার (একবারই)
     try { await loadSettings(); } catch (e) { /* defaults are fine */ }
     await loadProfile();
-    const sa = $('#sideAd'); if (sa) { sa.innerHTML = ADS.slot('side'); ADS.mount(sa); }
-    const qi = $('#q');
-    if (qi) {
-      qi.addEventListener('input', () => { S.q = qi.value; if (S.route === 'services' && $('#svcGrid')) paintServices(); });
-      qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.q = qi.value; if (S.route !== 'services') location.hash = '#/services'; else paintServices(); } });
-    }
-    ADS.init(!!S.user);
     route();
   })();
 })();

@@ -1,89 +1,158 @@
-/* Ads — banners / native in sandboxed frames; social bar + popunder with a strict show-schedule */
+/* Ads loader — শুধু ইউজার সাইটে (index.html) লোড হয়। admin.html এ এটা নেই। */
 (function () {
   'use strict';
-  var C = window.ADS || {};
-  var ON = C.enabled !== false;
-  var PREVIEW = /[?&]adpreview=1(?:&|$)/.test(location.search);
-  var banner = C.banner || {}, native = C.native || {};
-  var loadedScripts = false;
+  const C = window.ADS_CONFIG || {};
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const DEFAULT_SIZE = { top: [728, 90], bottom: [728, 90], sidebar: [300, 250] };
+  const frames = new Map();
+  let uid = 0;
 
-  function code(name) { return String(banner[name] || native[name] || '').trim(); }
-  function isNative(name) { return Object.prototype.hasOwnProperty.call(native, name); }
-
-  /* HTML for one slot (empty string when there is no code, unless ?adpreview=1) */
-  function slot(name) {
-    if (!ON || !/^[a-z_]+$/.test(name)) return '';
-    if (!code(name) && !PREVIEW) return '';
-    return '<div class="adslot ' + (isNative(name) ? 'native ' : '') + 'ad-' + name + '" data-slot="' + name + '"><span class="adlbl">বিজ্ঞাপন</span><div class="adbox"></div></div>';
+  if (C.enabled === false) {
+    window.BXAds = { mount(root) { (root || document).querySelectorAll('.adslot').forEach((s) => s.remove()); } };
+    return;
   }
 
-  /* fill every empty slot inside root with a sandboxed frame */
-  function mount(root) {
-    if (!ON) return;
-    var list = (root || document).querySelectorAll('.adslot:not([data-done])');
-    for (var i = 0; i < list.length; i++) {
-      var el = list[i], name = el.getAttribute('data-slot'), snip = code(name), box = el.querySelector('.adbox');
-      el.setAttribute('data-done', '1');
-      if (!snip) { box.classList.add('ph'); box.textContent = '[বিজ্ঞাপনের জায়গা: ' + name + ']'; continue; }
-      var w = /['"]?width['"]?\s*:\s*(\d{2,4})/.exec(snip), h = /['"]?height['"]?\s*:\s*(\d{2,4})/.exec(snip);
-      var nat = isNative(name);
-      var width = nat ? 0 : (w ? +w[1] : 300), height = nat ? (+C.nativeHeight || 300) : (h ? +h[1] : 250);
-      var f = document.createElement('iframe');
-      /* no allow-same-origin: the ad can never read this site's storage / login session; no top-navigation: it can't redirect the page */
-      f.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
-      f.setAttribute('title', 'বিজ্ঞাপন');
-      f.setAttribute('scrolling', 'no');
-      f.setAttribute('loading', 'lazy');
-      f.style.width = nat ? '100%' : width + 'px';
-      f.style.height = height + 'px';
-      f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}</style></head><body>' + snip + '</body></html>';
-      box.appendChild(f);
+  /* কোডে শুধু URL দিলেও যেন চলে */
+  function asHtml(s) {
+    s = str(s);
+    if (/^(https?:)?\/\/\S+$/i.test(s)) return '<script async data-cfasync="false" src="' + s.replace(/"/g, '&quot;') + '"><\/script>';
+    return s;
+  }
+  /* innerHTML দিয়ে বসালে <script> চলে না — তাই নতুন করে বানিয়ে বসাই */
+  function injectSnippet(html, parent) {
+    const t = document.createElement('template'); t.innerHTML = html;
+    Array.from(t.content.childNodes).forEach((n) => {
+      if (n.nodeName === 'SCRIPT') {
+        const s = document.createElement('script');
+        Array.from(n.attributes).forEach((a) => s.setAttribute(a.name, a.value));
+        s.text = n.textContent; parent.appendChild(s);
+      } else parent.appendChild(n.cloneNode(true));
+    });
+  }
+
+  /* ───────── ব্যানার / নেটিভ: আলাদা sandbox iframe এ (নিরাপত্তার জন্য) ───────── */
+  function frameDoc(id, html) {
+    return '<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}body{display:flex;justify-content:center}</style></head><body>' +
+      html + '<script>(function(){function r(){parent.postMessage({bxad:' + id + ',h:document.documentElement.scrollHeight},"*")}try{new ResizeObserver(r).observe(document.body)}catch(e){}addEventListener("load",r);setInterval(r,2000);r()})()<\/script></body></html>';
+  }
+  function sizeOf(html, key, dataSize) {
+    const w = /['"]?width['"]?\s*[:=]\s*['"]?(\d{2,4})/i.exec(html), h = /['"]?height['"]?\s*[:=]\s*['"]?(\d{2,4})/i.exec(html);
+    if (w && h) return [Number(w[1]), Number(h[1])];
+    const m = /^(\d+)x(\d+)$/.exec(dataSize || '');
+    if (m) return [Number(m[1]), Number(m[2])];
+    return DEFAULT_SIZE[key] || [300, 250];
+  }
+  function fit(rec) {
+    if (rec.native) return;
+    const avail = rec.slot.clientWidth || rec.w, sc = Math.min(1, avail / rec.w);
+    rec.el.style.transform = 'scale(' + sc + ')';
+    rec.box.style.width = Math.round(rec.w * sc) + 'px'; rec.box.style.height = Math.round(rec.h * sc) + 'px';
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data; if (!d || typeof d.bxad !== 'number') return;
+    const rec = frames.get(d.bxad); if (!rec || e.source !== rec.el.contentWindow || !rec.native) return;
+    const h = Math.max(0, Math.min(1500, Number(d.h) || 0)); if (h > 0) rec.el.style.height = h + 'px';
+  });
+  window.addEventListener('resize', () => frames.forEach((r) => { if (r.slot.isConnected) fit(r); }));
+
+  function mountOne(slot) {
+    if (slot.dataset.done) return;
+    if (!slot.getClientRects().length) return;                 // লুকানো জায়গায় (যেমন মোবাইলে সাইডবার) বিজ্ঞাপন লোড করব না
+    slot.dataset.done = '1';
+    const path = slot.dataset.ad || '', parts = path.split('.'), key = parts[parts.length - 1];
+    const raw = parts.length === 1 ? C[parts[0]] : ((C.pages || {})[parts[0]] || {})[parts[1]];
+    const code = str(raw), isLink = key === 'link', isNative = key === 'native';
+
+    if (!code) {
+      if (C.showPlaceholders === false) { slot.remove(); return; }
+      const sz = isLink ? [728, 60] : isNative ? [728, 120] : (DEFAULT_SIZE[key] || [300, 250]);
+      slot.innerHTML = '<div class="adph" style="max-width:' + sz[0] + 'px;min-height:' + sz[1] + 'px">বিজ্ঞাপনের জায়গা · ' + path + (isNative || isLink ? '' : ' · ' + sz[0] + '×' + sz[1]) + '</div>';
+      return;
     }
+    if (isLink) {
+      if (!/^https:\/\//i.test(code)) { slot.remove(); return; }
+      slot.innerHTML = '<div class="adlbl">স্পনসর্ড</div>';
+      const a = document.createElement('a');
+      a.className = 'adlinkcard'; a.href = code; a.target = '_blank'; a.rel = 'sponsored nofollow noopener noreferrer';
+      a.innerHTML = '<img class="giftimg" src="images/gift.png" alt="" width="44" height="44" data-fb="🎁"><span class="grow"><b></b><span class="small muted" style="display:block">স্পনসর্ড লিংক</span></span><span class="btn sm">দেখুন →</span>';
+      a.querySelector('b').textContent = str(C.linkTitle) || 'বিশেষ অফার দেখুন';
+      slot.appendChild(a); return;
+    }
+    const html = asHtml(code), id = ++uid, sz = isNative ? [0, 160] : sizeOf(html, key, slot.dataset.size);
+    const box = document.createElement('div'); box.className = 'adbox';
+    const el = document.createElement('iframe');
+    el.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation');
+    el.setAttribute('scrolling', 'no'); el.setAttribute('title', 'বিজ্ঞাপন');
+    if (isNative) { box.style.width = '100%'; el.style.width = '100%'; el.style.height = sz[1] + 'px'; }
+    else { el.style.width = sz[0] + 'px'; el.style.height = sz[1] + 'px'; }
+    el.srcdoc = frameDoc(id, html);
+    box.appendChild(el);
+    const lbl = document.createElement('div'); lbl.className = 'adlbl'; lbl.textContent = 'বিজ্ঞাপন';
+    slot.appendChild(lbl); slot.appendChild(box);
+    const rec = { el, box, slot, w: sz[0], h: sz[1], native: isNative };
+    frames.set(id, rec); fit(rec);
   }
+  function mount(root) { (root || document).querySelectorAll('.adslot').forEach(mountOne); }
 
-  /* ───── Popunder schedule: pop → 1 min quiet → pop → 30 min quiet → repeat ───── */
-  var KEY = 'bx_pop', mem = { s: 0, u: 0 };
-  function read() { try { var v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && typeof v.s === 'number') return v; } catch (e) {} return mem; }
-  function write(v) { mem = v; try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} }
-  function popAllowed() {
-    var now = Date.now(), st = read(), gap = +C.popunderGapMs || 60000, rest = +C.popunderRestMs || 1800000;
-    if (st.s === 1) { if (now >= st.u) { write({ s: 2, u: now + rest }); return true; } return false; }   // 2nd pop
-    if (st.s === 2) { if (now >= st.u) { write({ s: 1, u: now + gap }); return true; } return false; }   // rest over → new cycle, 1st pop
-    write({ s: 1, u: now + gap }); return true;                                                           // very first pop
+  /* ───────── Social Bar: পুরো সাইটে একবার ───────── */
+  function startSocialBar() { const s = asHtml(C.socialBar); if (s) injectSnippet(s, document.body); }
+
+  /* ───────── Popunder: সময়ের নিয়ম ─────────
+     ক্লিক ১ → পপ (১ম) → gap1 বন্ধ → ক্লিক → পপ (২য়) → gap2 বন্ধ → আবার ১ম
+     সময় localStorage এ থাকে, তাই পেজ বদলালে/রিলোড দিলেও নিয়ম ঠিক থাকে। */
+  const KEY = 'bx_pop_v1', GAP1 = (Number(C.popunderGap1) || 60) * 1000, GAP2 = (Number(C.popunderGap2) || 1800) * 1000;
+  const TYPES = /^(click|mousedown|mouseup|pointerdown|pointerup|touchstart|touchend)$/;
+  let armed = false, ready = false, rec = [], scriptEl = null, patchTimer = null, origAdd = null;
+
+  function getState() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && typeof s.n === 'number' && typeof s.t === 'number') return s; } catch (e) {} return { n: 0, t: 0 }; }
+  function setState(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function waitMs() {
+    const s = getState(), now = Date.now();
+    if (s.n <= 0) return 0;
+    const gap = s.n === 1 ? GAP1 : GAP2;
+    if (s.t > now) return gap;                                   // ঘড়ি উল্টাপাল্টা হলে নিরাপদ দিকে থাকি
+    return Math.max(0, s.t + gap - now);
   }
-  function installGate() {
-    var orig = window.open;
-    var dummy = function () { return { closed: false, focus: function () {}, blur: function () {}, close: function () {}, location: {}, document: { write: function () {}, close: function () {} } }; };
-    window.open = function (url) {
-      var external = true;
-      try { external = !url || new URL(url, location.href).origin !== location.origin; } catch (e) {}
-      if (!external || popAllowed()) return orig.apply(window, arguments);
-      return dummy();
+  function unpatch() { if (origAdd) { EventTarget.prototype.addEventListener = origAdd; origAdd = null; } clearTimeout(patchTimer); }
+  function neutralize() {
+    rec.forEach((r) => { try { r[0].removeEventListener(r[1], r[2], r[3]); } catch (e) {} });
+    rec = [];
+    ['onclick', 'onmousedown', 'onmouseup'].forEach((p) => { try { document[p] = null; if (document.body) document.body[p] = null; window[p] = null; } catch (e) {} });
+    if (scriptEl && scriptEl.parentNode) scriptEl.parentNode.removeChild(scriptEl);
+    scriptEl = null; armed = false; ready = false; unpatch();
+  }
+  function scheduleArm() { setTimeout(arm, waitMs() + 300); }
+  function arm() {
+    if (armed) return;
+    const w = waitMs(); if (w > 0) { setTimeout(arm, w + 300); return; }
+    const html = asHtml(C.popunder); if (!html) return;
+    armed = true; ready = false;
+    /* স্ক্রিপ্ট যে ক্লিক-লিসনার বসায় সেগুলো ধরে রাখি, যাতে সময় না হলে সরিয়ে দিতে পারি */
+    origAdd = EventTarget.prototype.addEventListener;
+    const orig = origAdd;
+    EventTarget.prototype.addEventListener = function (t, f, o) {
+      try { if (TYPES.test(t) && f !== onClick && (this === document || this === window || this === document.body || this === document.documentElement)) rec.push([this, t, f, o]); } catch (e) {}
+      return orig.call(this, t, f, o);
     };
+    patchTimer = setTimeout(unpatch, 12000);
+    const before = document.body.querySelectorAll('script').length;
+    injectSnippet(html, document.body);
+    const all = document.body.querySelectorAll('script'); scriptEl = all.length > before ? all[all.length - 1] : null;
+    const done = () => { ready = true; };
+    if (scriptEl && scriptEl.src) { scriptEl.addEventListener('load', done); scriptEl.addEventListener('error', () => { neutralize(); setTimeout(arm, 60000); }); } else done();
   }
+  function onClick(e) {
+    if (!armed || !ready || e.isTrusted === false) return;
+    const w = waitMs();
+    if (w > 0) { neutralize(); setTimeout(arm, w + 300); return; }      // অন্য ট্যাবে আগেই পপ হয়ে গেছে
+    const s = getState();
+    setState({ n: s.n === 1 ? 2 : 1, t: Date.now() });                 // এই ক্লিকেই পপ হবে
+    setTimeout(() => { neutralize(); scheduleArm(); }, 80);
+  }
+  window.addEventListener('click', onClick, true);
 
-  function srcOf(s) {
-    var m = /<script[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i.exec(String(s || ''));
-    if (!m) return '';
-    var u = m[1].trim(); if (u.indexOf('//') === 0) u = 'https:' + u;
-    return /^https:\/\/[^\s"'<>]+$/i.test(u) ? u : '';
-  }
-  function inject(u) { var s = document.createElement('script'); s.src = u; s.async = true; document.body.appendChild(s); loadedScripts = true; }
+  function start() { startSocialBar(); if (str(C.popunder)) arm(); }
+  if (document.readyState === 'complete') setTimeout(start, 300); else window.addEventListener('load', () => setTimeout(start, 300));
 
-  /* call once after we know whether a user is logged in */
-  function init(loggedIn) {
-    if (!ON) return;
-    if (loggedIn && C.scriptAdsForLoggedIn !== true) return;
-    var pop = srcOf(C.popunder), bar = srcOf(C.socialBar);
-    if (pop) { installGate(); inject(pop); }
-    if (bar) inject(bar);
-  }
-  /* a visitor just logged in: scripts that were loaded for guests must not stay on a logged-in page → reload clean */
-  function onLogin() {
-    if (loadedScripts && C.scriptAdsForLoggedIn !== true) { location.reload(); return true; }
-    return false;
-  }
-
-  window.BX = window.BX || {};
-  window.BX.ads = { slot: slot, mount: mount, init: init, onLogin: onLogin };
+  window.BXAds = { mount };
 })();
