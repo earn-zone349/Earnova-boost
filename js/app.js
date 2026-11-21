@@ -11,7 +11,7 @@
   const slot = (k, size) => `<div class="adslot" data-ad="${S.route === 'new' ? 'home' : S.route}.${k}"${size ? ` data-size="${size}"` : ''}></div>`;
   const mountAds = () => { if (window.BXAds) window.BXAds.mount($('#view')); };
   /* ছবি: images/<নাম>.png থাকলে সেটা, না থাকলে আগের কোড-আঁকা আইকন (fallback) */
-  const img = (name, cls, fb) => /^[\w-]+$/.test(name) ? `<img class="${cls || ''}" src="images/${name}.png" alt="" decoding="async" data-fb="${esc(fb || '')}">` : (fb || '');
+  const img = (name, cls, fb) => /^[\w-]+$/.test(name) ? `<img class="${cls || ''}" src="images/${name}.png" alt="" decoding="async"${name === 'tiktok' ? '' : ' data-ko'} data-fb="${esc(fb || '')}">` : (fb || '');
   const pmark = (p) => img(p, 'pimg', platMark(p));
 
   /* ───────────── data ───────────── */
@@ -45,12 +45,11 @@
   function paintHeader() {
     const r = $('#hdrRight'), out = $('#sideLogout');
     if (out) out.classList.toggle('hide', !S.user);
+    const tl = $('#tabLogout'); if (tl) tl.classList.toggle('hide', !S.user);
     if (S.user) {
       const bal = S.profile ? money(S.profile.balance) : '…';
       const nm = (S.profile && S.profile.full_name) || (S.user.email || '').split('@')[0] || 'আমি';
-      r.innerHTML = `<a class="uchip" href="#/wallet" title="ওয়ালেট"><span class="av">${esc(Array.from(nm)[0].toUpperCase())}</span><span><span class="nm">${esc(nm)}</span><span class="bl">${esc(bal)}</span></span></a>
-        <button class="btn ghost sm mobonly" id="logoutBtn" type="button" style="margin-left:8px">লগআউট</button>`;
-      $('#logoutBtn').onclick = doLogout;
+      r.innerHTML = `<a class="uchip" href="#/wallet" title="ওয়ালেট"><span class="av">${esc(Array.from(nm)[0].toUpperCase())}</span><span><span class="nm">${esc(nm)}</span><span class="bl">${esc(bal)}</span></span></a>`;
     } else {
       r.innerHTML = `<button class="btn ghost sm" id="liBtn" type="button">লগইন</button>
         <button class="btn sm" id="suBtn" type="button" style="margin-left:6px">রেজিস্টার</button>`;
@@ -391,6 +390,7 @@
       else if ($('#svcGrid')) paintServices();
     });
     const so = $('#sideLogout'); if (so) so.onclick = doLogout;
+    const tlo = $('#tabLogout'); if (tlo) tlo.onclick = doLogout;
     if (window.BXAds) window.BXAds.mount(document.querySelector('.side'));   // সাইডবার ব্যানার (একবারই)
     try { await loadSettings(); } catch (e) { /* defaults are fine */ }
     await loadProfile();
