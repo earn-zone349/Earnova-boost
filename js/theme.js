@@ -5,7 +5,7 @@
   function current() { return root.getAttribute('data-theme') || 'light'; }
   function apply(t) {
     root.setAttribute('data-theme', t);
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'dark' ? '#131a2e' : '#4f46e5');
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'dark' ? '#04100a' : '#15803d');
     var b = document.getElementById('themeBtn');
     if (b) { b.textContent = t === 'dark' ? '☀️' : '🌙'; b.setAttribute('aria-label', t === 'dark' ? 'লাইট মোড' : 'ডার্ক মোড'); b.title = b.getAttribute('aria-label'); }
   }
