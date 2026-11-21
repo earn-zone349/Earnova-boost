@@ -5,7 +5,9 @@
           openModal, closeModal, busy, linkHtml, authModal, recoveryModal, setupMissing } = window.BX;
   if (!configured || !sb) { setupMissing(); return; }
 
-  const S = { user: null, profile: null, services: [], settings: {}, filter: 'all', ordFilter: 'all', timer: null, route: 'home' };
+  const ADS = window.BX.ads || { slot: () => '', mount() {}, init() {}, onLogin: () => false };
+  const S = { user: null, profile: null, services: [], settings: {}, filter: 'all', ordFilter: 'all', timer: null, route: 'home', q: '', orders: [], span: 7 };
+  const ICON = { cart: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 7H6"/></svg>' };
 
   /* ───────────── data ───────────── */
   async function loadSettings() {
@@ -13,7 +15,9 @@
     const o = {}; (data || []).forEach((r) => { o[r.key] = r.value; });
     S.settings = o;
     const name = typeof o.site_name === 'string' && o.site_name ? o.site_name : 'BoostBD';
-    $('#brandName').textContent = name; document.title = name;
+    $$('.brandName').forEach((e) => { e.textContent = name; }); document.title = name;
+    const sup = typeof o.support_link === 'string' && /^https:\/\//i.test(o.support_link) ? o.support_link : '';
+    const sl = $('#supportLink'); if (sl) { sl.classList.toggle('hide', !sup); if (sup) sl.href = sup; }
     $('#footTxt').textContent = '© ' + new Date().getFullYear() + ' ' + name;
   }
   async function loadServices() {
@@ -33,31 +37,38 @@
   }
 
   function paintHeader() {
-    const r = $('#hdrRight');
+    const r = $('#hdrRight'), sa = $('#sideAuth');
+    const out = '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>';
+    const doLogout = async () => { await sb.auth.signOut(); toast('লগআউট হয়েছে।'); };
     if (S.user) {
+      const nm = (S.profile && S.profile.full_name) || (S.user.email || '').split('@')[0] || 'ব্যবহারকারী';
       const bal = S.profile ? money(S.profile.balance) : '…';
       r.innerHTML = `<a class="chip" href="#/wallet" title="ওয়ালেট">${esc(bal)}</a>
-        <button class="btn ghost sm" id="logoutBtn" type="button" style="margin-left:8px">লগআউট</button>`;
-      $('#logoutBtn').onclick = async () => { await sb.auth.signOut(); toast('লগআউট হয়েছে।'); };
+        <span class="avatar" style="margin-left:8px" title="${esc(S.user.email || '')}"><b>${esc((nm[0] || '?').toUpperCase())}</b><span class="nowrap">${esc(nm.length > 14 ? nm.slice(0, 14) + '…' : nm)}</span></span>`;
+      sa.innerHTML = out + 'লগআউট'; sa.onclick = doLogout;
     } else {
       r.innerHTML = `<button class="btn ghost sm" id="liBtn" type="button">লগইন</button>
         <button class="btn sm" id="suBtn" type="button" style="margin-left:6px">রেজিস্টার</button>`;
       $('#liBtn').onclick = () => authModal(onAuthed, 'in');
       $('#suBtn').onclick = () => authModal(onAuthed, 'up');
+      sa.innerHTML = '<svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>লগইন / রেজিস্টার';
+      sa.onclick = () => authModal(onAuthed, 'in');
     }
   }
-  async function onAuthed() { await loadProfile(); route(); }
+  async function onAuthed() { if (ADS.onLogin()) return; await loadProfile(); route(); }
 
   /* ───────────── router ───────────── */
   function route() {
     clearInterval(S.timer); S.timer = null;
     const h = (location.hash || '#/').replace(/^#\/?/, '');
-    const r = h.startsWith('orders') ? 'orders' : h.startsWith('wallet') ? 'wallet' : 'home';
+    const r = h.startsWith('orders') ? 'orders' : h.startsWith('wallet') ? 'wallet' : h.startsWith('services') ? 'services' : 'home';
     S.route = r;
     $$('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
+    window.scrollTo(0, 0);
     if (r === 'orders') return viewOrders();
     if (r === 'wallet') return viewWallet();
-    return viewHome();
+    if (r === 'services') return viewServices();
+    return viewDashboard();
   }
   window.addEventListener('hashchange', route);
 
@@ -70,25 +81,85 @@
     $('#nl2').onclick = () => authModal(onAuthed, 'up');
   }
 
-  /* ───────────── HOME ───────────── */
-  async function viewHome() {
+  /* ───────────── DASHBOARD ───────────── */
+  function trust() {
+    return `<div class="card trust"><div><span>💰</span>দাম আগেই দেখা যায়</div><div><span>📈</span>অর্ডারের অগ্রগতি লাইভ</div>
+      <div><span>↩️</span>বাতিল হলে টাকা ফেরত</div><div><span>🛟</span>সাপোর্টে যোগাযোগ</div></div>`;
+  }
+  function chartSvg(pts, labels) {
+    const W = 640, H = 220, L = 40, R = 12, T = 14, B = 28, max = Math.max(1, ...pts), step = (W - L - R) / Math.max(1, pts.length - 1);
+    const nice = (() => { const m = Math.pow(10, Math.floor(Math.log10(max))); return Math.ceil(max / m) * m; })();
+    const y = (v) => T + (H - T - B) * (1 - v / nice), x = (i) => L + step * i;
+    const line = pts.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    const area = line + ` L${x(pts.length - 1).toFixed(1)} ${H - B} L${x(0).toFixed(1)} ${H - B} Z`;
+    const grid = [0, .25, .5, .75, 1].map((f) => `<line class="gl" x1="${L}" x2="${W - R}" y1="${y(nice * f).toFixed(1)}" y2="${y(nice * f).toFixed(1)}"/><text x="${L - 6}" y="${(y(nice * f) + 4).toFixed(1)}" text-anchor="end">${esc(num(Math.round(nice * f)))}</text>`).join('');
+    const every = Math.ceil(pts.length / 7);
+    const xl = labels.map((t, i) => (i % every === 0 || i === labels.length - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(t)}</text>` : '').join('');
+    const dots = pts.length <= 14 ? pts.map((v, i) => `<circle class="dt" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5"/>`).join('') : '';
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="অর্ডারের পরিমাণের চার্ট"><defs><linearGradient id="cg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--brand)" stop-opacity=".35"/><stop offset="1" stop-color="var(--brand)" stop-opacity="0"/></linearGradient></defs>${grid}<path class="ar" d="${area}"/><path class="ln" d="${line}"/>${dots}${xl}</svg>`;
+  }
+  function paintChart() {
+    const el = $('#chartBox'); if (!el) return;
+    const n = S.span, today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = [], pts = [], key = (d) => d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    for (let i = n - 1; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(d); pts.push(0); }
+    const idx = {}; days.forEach((d, i) => { idx[key(d)] = i; });
+    S.orders.forEach((o) => { if (o.status === 'cancelled') return; const k = key(new Date(o.created_at)); if (k in idx) pts[idx[k]] += Number(o.quantity) || 0; });
+    el.innerHTML = chartSvg(pts, days.map((d) => d.toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })));
+    $$('#spanSeg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === n));
+  }
+  async function viewDashboard() {
     const v = $('#view');
-    v.innerHTML = `<section class="hero"><h1>সোশ্যাল মিডিয়ায় এগিয়ে যান</h1>
-      <p>Facebook, YouTube, TikTok ও Instagram এর ফলোয়ার, লাইক ও ভিউ — দাম আগেই দেখুন, নিজের ওয়ালেট থেকে অর্ডার করুন, আর অর্ডারের অগ্রগতি সরাসরি দেখুন।</p></section>
-      <div id="noticeBox"></div>
-      <div class="grid g4 sect" id="stats"></div>
-      <div class="sect"><h2>সার্ভিস ও দাম</h2>
-        <div class="filters" id="filters"></div>
-        <div class="grid g3" id="svcGrid"><div class="empty"><span class="spin"></span></div></div></div>`;
-    const n = S.settings.notice;
-    if (typeof n === 'string' && n.trim()) $('#noticeBox').innerHTML = `<div class="notice">${esc(n)}</div>`;
+    const notice = typeof S.settings.notice === 'string' && S.settings.notice.trim() ? `<div class="notice">${esc(S.settings.notice)}</div>` : '';
+    v.innerHTML = `${ADS.slot('home_top')}${notice}
+      <section class="hero2"><div class="orbit" aria-hidden="true"><span class="plat o1" style="background:#1877f2">f</span><span class="plat o2" style="background:#e11d1d">▶</span><span class="plat o3" style="background:#d62976">◎</span><span class="plat o4" style="background:#0f172a">♪</span></div>
+        <h1>সোশ্যাল মিডিয়ায় এগিয়ে যান,<br><em>অনলাইন উপস্থিতি বাড়ান</em></h1>
+        <p>Facebook, YouTube, TikTok ও Instagram এর ফলোয়ার, লাইক ও ভিউ — দাম আগেই দেখুন, নিজের ওয়ালেট থেকে অর্ডার করুন, আর অর্ডারের অগ্রগতি সরাসরি দেখুন।</p>
+        <ul class="checks"><li>দাম আগেই দেখুন</li><li>লাইভ অগ্রগতি</li><li>সহজ পেমেন্ট</li><li>বাতিলে টাকা ফেরত</li></ul>
+        <a class="btn cta" href="#/services">অর্ডার শুরু করুন →</a></section>
+      <div class="grid g4 sect" id="stats"><div class="empty" style="grid-column:1/-1"><span class="spin"></span></div></div>
+      <div class="dash2 sect"><div class="card chartcard" id="chartCard"></div><div class="card"><div class="row" style="margin-bottom:6px"><h2 class="grow" style="margin:0;font-size:17px">আমাদের সার্ভিস</h2><a class="small" href="#/services">সব দেখুন →</a></div><div class="svlist" id="svTop"><div class="empty"><span class="spin"></span></div></div></div></div>
+      ${ADS.slot('home_mid')}
+      <div class="sect">${trust()}</div>${ADS.slot('home_bottom')}`;
+    ADS.mount(v);
+    try { await loadServices(); } catch (e) { $('#svTop').innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; }
+    if (S.route !== 'home' || !$('#svTop')) return;
+    $('#svTop').innerHTML = S.services.slice(0, 6).map((x) => `<button class="svrow" type="button" data-order="${esc(x.id)}">${platMark(x.platform)}<span><b>${esc(x.name)}</b><br><span class="muted small">${esc(num(x.min_qty))}–${esc(num(x.max_qty))}</span></span><span class="p">${esc(money(x.price_per_1000))}<small class="muted"> /১০০০</small></span></button>`).join('') || '<div class="empty">এখন কোনো সার্ভিস নেই।</div>';
+    $$('#svTop [data-order]').forEach((b) => b.onclick = () => orderModal(Number(b.dataset.order)));
+
+    if (S.user) {
+      const { data } = await sb.from('orders').select('platform,quantity,delivered,status,created_at').order('created_at', { ascending: false }).limit(300);
+      if (S.route !== 'home' || !$('#stats')) return;
+      S.orders = data || [];
+      const by = {}; Object.keys(PLATFORMS).forEach((k) => { by[k] = { d: 0, n: 0 }; });
+      S.orders.forEach((o) => { if (by[o.platform]) { by[o.platform].d += Number(o.delivered) || 0; by[o.platform].n += 1; } });
+      $('#stats').innerHTML = Object.keys(PLATFORMS).map((k) => `<div class="card pstat">${platMark(k).replace('class="plat"', 'class="plat lg"')}<div><b>${esc(num(by[k].d))}</b><span><strong>${esc(PLATFORMS[k].name)}</strong><br>পাওয়া ডেলিভারি · ${esc(num(by[k].n))}টি অর্ডার</span></div></div>`).join('');
+      $('#chartCard').innerHTML = `<div class="head"><h2>আপনার অর্ডার (পরিমাণ)</h2><div class="seg" id="spanSeg"><button type="button" data-n="7">৭ দিন</button><button type="button" data-n="30">৩০ দিন</button></div></div><div id="chartBox"></div>`;
+      $$('#spanSeg button').forEach((b) => b.onclick = () => { S.span = Number(b.dataset.n); paintChart(); });
+      paintChart();
+    } else {
+      sb.rpc('get_public_stats').then(({ data }) => {
+        if (!$('#stats')) return;
+        const d = data || {};
+        const items = [['মোট অর্ডার', d.orders_total], ['এখন চলছে', d.orders_active], ['সম্পন্ন অর্ডার', d.orders_completed], ['মোট ডেলিভারি', d.units_delivered]];
+        $('#stats').innerHTML = items.map(([l, x]) => `<div class="card stat"><b>${esc(num(x || 0))}</b><span>${esc(l)}</span></div>`).join('');
+      });
+      $('#chartCard').innerHTML = `<h2 style="font-size:17px">আপনার অর্ডার</h2><div class="empty">লগইন করলে এখানে আপনার অর্ডারের চার্ট দেখতে পাবেন।<br><button class="btn sm" id="chLi" type="button" style="margin-top:10px">লগইন / রেজিস্টার</button></div>`;
+      $('#chLi').onclick = () => authModal(onAuthed, 'in');
+    }
+  }
+
+  /* ───────────── NEW ORDER (services) ───────────── */
+  async function viewServices() {
+    const v = $('#view');
+    v.innerHTML = `${ADS.slot('services_top')}<div class="sect" style="margin-top:6px"><h2>নতুন অর্ডার — সার্ভিস ও দাম</h2>
+      <div class="filters" id="filters"></div>
+      <div class="grid g3" id="svcGrid"><div class="empty"><span class="spin"></span></div></div></div>
+      ${ADS.slot('services_mid')}${ADS.slot('services_bottom')}`;
+    ADS.mount(v);
     try { await loadServices(); } catch (e) { $('#svcGrid').innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
+    if (S.route !== 'services' || !$('#svcGrid')) return;
     paintFilters(); paintServices();
-    sb.rpc('get_public_stats').then(({ data }) => {
-      if (!data || !$('#stats')) return;
-      const items = [['মোট অর্ডার', data.orders_total], ['এখন চলছে', data.orders_active], ['সম্পন্ন অর্ডার', data.orders_completed], ['মোট ডেলিভারি', data.units_delivered]];
-      $('#stats').innerHTML = items.map(([l, x]) => `<div class="card stat"><b>${esc(num(x))}</b><span>${esc(l)}</span></div>`).join('');
-    });
   }
   function paintFilters() {
     const present = ['all', ...Object.keys(PLATFORMS).filter((p) => S.services.some((s) => s.platform === p))];
@@ -97,8 +168,9 @@
     $$('#filters .pill').forEach((b) => b.onclick = () => { S.filter = b.dataset.f; paintFilters(); paintServices(); });
   }
   function paintServices() {
-    const list = S.services.filter((s) => S.filter === 'all' || s.platform === S.filter);
-    if (!list.length) { $('#svcGrid').innerHTML = '<div class="empty">এখন কোনো সার্ভিস নেই।</div>'; return; }
+    const qq = (S.q || '').trim().toLowerCase();
+    const list = S.services.filter((s) => (S.filter === 'all' || s.platform === S.filter) && (!qq || (s.name + ' ' + s.description + ' ' + ((PLATFORMS[s.platform] || {}).name || '')).toLowerCase().includes(qq)));
+    if (!list.length) { $('#svcGrid').innerHTML = '<div class="empty">' + (qq ? 'এই নামে কোনো সার্ভিস পাওয়া যায়নি।' : 'এখন কোনো সার্ভিস নেই।') + '</div>'; return; }
     $('#svcGrid').innerHTML = list.map((s) => `
       <article class="card svc">
         <div class="row">${platMark(s.platform)}<div class="grow"><h3 style="margin:0">${esc(s.name)}</h3>
@@ -152,9 +224,10 @@
   /* ───────────── MY ORDERS ───────────── */
   async function viewOrders() {
     if (!S.user) return needLogin('আপনার অর্ডার');
-    $('#view').innerHTML = `<div class="sect"><div class="row"><h2 class="grow" style="margin:0">আমার অর্ডার</h2>
+    $('#view').innerHTML = `${ADS.slot('orders_top')}<div class="sect"><div class="row"><h2 class="grow" style="margin:0">আমার অর্ডার</h2>
       <button class="btn ghost sm" id="refresh" type="button">রিফ্রেশ</button></div>
-      <div class="filters" id="ordFilters"></div><div id="ordList"><div class="empty"><span class="spin"></span></div></div></div>`;
+      <div class="filters" id="ordFilters"></div><div id="ordList"><div class="empty"><span class="spin"></span></div></div></div>${ADS.slot('orders_native')}${ADS.slot('orders_bottom')}`;
+    ADS.mount($('#view'));
     $('#refresh').onclick = () => paintOrders(true);
     await paintOrders(false);
     S.timer = setInterval(() => { if (!document.hidden && S.route === 'orders') paintOrders(true, true); }, 30000);
@@ -198,7 +271,7 @@
     const methods = (Array.isArray(S.settings.deposit_methods) ? S.settings.deposit_methods : []).filter((m) => m && m.active !== false);
     const minDep = Number(S.settings.min_deposit) > 0 ? Number(S.settings.min_deposit) : 50;
     const support = typeof S.settings.support_link === 'string' && /^https:\/\//i.test(S.settings.support_link) ? S.settings.support_link : '';
-    $('#view').innerHTML = `<div class="sect"><div class="card" style="background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;border:0">
+    $('#view').innerHTML = `${ADS.slot('wallet_top')}<div class="sect"><div class="card" style="background:linear-gradient(135deg,var(--brand),var(--brand-2));color:var(--brand-text);border:0">
         <div style="opacity:.85">আপনার ব্যালেন্স</div><div style="font-size:34px;font-weight:800">${esc(money(S.profile ? S.profile.balance : 0))}</div></div></div>
       <div class="sect"><h2>টাকা জমা দিন</h2><div class="card">
         ${methods.length ? `
@@ -225,7 +298,8 @@
         <label class="f" for="pName">নাম</label><input class="in" id="pName" maxlength="80" value="${esc(S.profile ? S.profile.full_name : '')}">
         <label class="f" for="pPhone">মোবাইল</label><input class="in" id="pPhone" maxlength="20" value="${esc(S.profile ? S.profile.phone : '')}">
         <div class="err" id="pErr"></div><button class="btn" id="pGo" type="submit" style="margin-top:8px">সেভ করুন</button></form></div></div>
-      ${support ? `<p class="center"><a href="${esc(support)}" target="_blank" rel="noopener noreferrer">সাপোর্টে যোগাযোগ করুন</a></p>` : ''}`;
+      ${support ? `<p class="center"><a href="${esc(support)}" target="_blank" rel="noopener noreferrer">সাপোর্টে যোগাযোগ করুন</a></p>` : ''}${ADS.slot('wallet_bottom')}`;
+    ADS.mount($('#view'));
 
     $$('[data-copy]').forEach((b) => b.onclick = async (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -285,6 +359,13 @@
   (async function init() {
     try { await loadSettings(); } catch (e) { /* defaults are fine */ }
     await loadProfile();
+    const sa = $('#sideAd'); if (sa) { sa.innerHTML = ADS.slot('side'); ADS.mount(sa); }
+    const qi = $('#q');
+    if (qi) {
+      qi.addEventListener('input', () => { S.q = qi.value; if (S.route === 'services' && $('#svcGrid')) paintServices(); });
+      qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.q = qi.value; if (S.route !== 'services') location.hash = '#/services'; else paintServices(); } });
+    }
+    ADS.init(!!S.user);
     route();
   })();
 })();
