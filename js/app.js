@@ -86,6 +86,16 @@
     return `<div class="card trust"><div><span>💰</span>দাম আগেই দেখা যায়</div><div><span>📈</span>অর্ডারের অগ্রগতি লাইভ</div>
       <div><span>↩️</span>বাতিল হলে টাকা ফেরত</div><div><span>🛟</span>সাপোর্টে যোগাযোগ</div></div>`;
   }
+  function spark(pts, color) {
+    const W = 90, H = 34, max = Math.max(1, ...pts), st = W / Math.max(1, pts.length - 1);
+    const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * st).toFixed(1) + ' ' + (H - 3 - (H - 8) * v / max).toFixed(1)).join(' ');
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  function platSeries(k) {
+    const today = new Date(); today.setHours(0, 0, 0, 0); const arr = [0, 0, 0, 0, 0, 0, 0];
+    S.orders.forEach((o) => { if (o.platform !== k || o.status === 'cancelled') return; const dd = Math.round((today - new Date(new Date(o.created_at).setHours(0, 0, 0, 0))) / 86400000); if (dd >= 0 && dd < 7) arr[6 - dd] += Number(o.quantity) || 0; });
+    return arr;
+  }
   function chartSvg(pts, labels) {
     const W = 640, H = 220, L = 40, R = 12, T = 14, B = 28, max = Math.max(1, ...pts), step = (W - L - R) / Math.max(1, pts.length - 1);
     const nice = (() => { const m = Math.pow(10, Math.floor(Math.log10(max))); return Math.ceil(max / m) * m; })();
@@ -112,7 +122,7 @@
     const v = $('#view');
     const notice = typeof S.settings.notice === 'string' && S.settings.notice.trim() ? `<div class="notice">${esc(S.settings.notice)}</div>` : '';
     v.innerHTML = `${ADS.slot('home_top')}${notice}
-      <section class="hero2"><div class="orbit" aria-hidden="true"><span class="plat o1" style="background:#1877f2">f</span><span class="plat o2" style="background:#e11d1d">▶</span><span class="plat o3" style="background:#d62976">◎</span><span class="plat o4" style="background:#0f172a">♪</span></div>
+      <section class="hero2"><img class="heroimg" src="img/hero.png" alt="" onerror="this.remove()"><div class="orbit" aria-hidden="true"><span class="plat o1" style="background:#1877f2">f</span><span class="plat o2" style="background:#e11d1d">▶</span><span class="plat o3" style="background:#d62976">◎</span><span class="plat o4" style="background:#0f172a">♪</span></div>
         <h1>সোশ্যাল মিডিয়ায় এগিয়ে যান,<br><em>অনলাইন উপস্থিতি বাড়ান</em></h1>
         <p>Facebook, YouTube, TikTok ও Instagram এর ফলোয়ার, লাইক ও ভিউ — দাম আগেই দেখুন, নিজের ওয়ালেট থেকে অর্ডার করুন, আর অর্ডারের অগ্রগতি সরাসরি দেখুন।</p>
         <ul class="checks"><li>দাম আগেই দেখুন</li><li>লাইভ অগ্রগতি</li><li>সহজ পেমেন্ট</li><li>বাতিলে টাকা ফেরত</li></ul>
@@ -133,7 +143,7 @@
       S.orders = data || [];
       const by = {}; Object.keys(PLATFORMS).forEach((k) => { by[k] = { d: 0, n: 0 }; });
       S.orders.forEach((o) => { if (by[o.platform]) { by[o.platform].d += Number(o.delivered) || 0; by[o.platform].n += 1; } });
-      $('#stats').innerHTML = Object.keys(PLATFORMS).map((k) => `<div class="card pstat">${platMark(k).replace('class="plat"', 'class="plat lg"')}<div><b>${esc(num(by[k].d))}</b><span><strong>${esc(PLATFORMS[k].name)}</strong><br>পাওয়া ডেলিভারি · ${esc(num(by[k].n))}টি অর্ডার</span></div></div>`).join('');
+      $('#stats').innerHTML = Object.keys(PLATFORMS).map((k) => `<div class="card pstat" style="--pc:${PLATFORMS[k].color === '#0f172a' ? '#25f4ee' : PLATFORMS[k].color}">${platMark(k).replace('class="plat"', 'class="plat lg"')}<div class="grow"><b>${esc(num(by[k].d))}</b><span><strong>${esc(PLATFORMS[k].name)}</strong><br>পাওয়া ডেলিভারি · ${esc(num(by[k].n))}টি অর্ডার</span></div>${spark(platSeries(k), PLATFORMS[k].color === '#0f172a' ? '#25f4ee' : PLATFORMS[k].color)}</div>`).join('');
       $('#chartCard').innerHTML = `<div class="head"><h2>আপনার অর্ডার (পরিমাণ)</h2><div class="seg" id="spanSeg"><button type="button" data-n="7">৭ দিন</button><button type="button" data-n="30">৩০ দিন</button></div></div><div id="chartBox"></div>`;
       $$('#spanSeg button').forEach((b) => b.onclick = () => { S.span = Number(b.dataset.n); paintChart(); });
       paintChart();
