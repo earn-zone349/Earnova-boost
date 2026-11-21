@@ -5,39 +5,55 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>BoostBD</title>
 <meta name="description" content="Facebook, YouTube, TikTok ও Instagram এর ফলোয়ার, লাইক ও ভিউ — সহজে অর্ডার করুন।">
-<meta name="theme-color" content="#4f46e5">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#15803d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316a34a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/theme.js"></script>
 </head>
 <body>
-<header class="top">
-  <div class="wrap">
-    <a class="brand" href="#/"><i></i><span id="brandName">BoostBD</span></a>
-    <nav class="nav" id="nav">
-      <a href="#/" data-r="home">সার্ভিস</a>
-      <a href="#/orders" data-r="orders">আমার অর্ডার</a>
-      <a href="#/wallet" data-r="wallet">ওয়ালেট</a>
+<div class="shell">
+  <aside class="side" id="side" aria-label="মেনু">
+    <a class="brand" href="#/"><i></i><span class="brandName">BoostBD</span></a>
+    <nav class="snav" id="snav">
+      <a href="#/" data-r="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>ড্যাশবোর্ড</a>
+      <a href="#/services" data-r="services"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 7H6"/></svg>নতুন অর্ডার</a>
+      <a href="#/orders" data-r="orders"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>আমার অর্ডার</a>
+      <a href="#/wallet" data-r="wallet"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14" r="1"/></svg>টাকা জমা / ওয়ালেট</a>
+      <a href="#" id="supportLink" class="hide" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>সাপোর্ট</a>
     </nav>
-    <span class="grow"></span>
-    <button class="themebtn" id="themeBtn" type="button" aria-label="ডার্ক মোড">🌙</button>
-    <span id="hdrRight"></span>
-  </div>
-</header>
+    <div id="sideAd"></div>
+    <div class="sp"></div>
+    <nav class="snav"><button id="sideAuth" type="button"></button></nav>
+  </aside>
 
-<main class="wrap" id="view" aria-live="polite"><div class="empty"><span class="spin"></span></div></main>
+  <div class="main">
+    <header class="topbar">
+      <a class="brand" href="#/"><i></i><span class="brandName">BoostBD</span></a>
+      <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="q" type="search" placeholder="সার্ভিস খুঁজুন…" autocomplete="off" aria-label="সার্ভিস খুঁজুন"></label>
+      <span class="grow"></span>
+      <button class="themebtn" id="themeBtn" type="button" aria-label="ডার্ক মোড">🌙</button>
+      <span id="hdrRight"></span>
+    </header>
+    <div class="pagewrap">
+      <main id="view" aria-live="polite"><div class="empty"><span class="spin"></span></div></main>
+      <footer><span id="footTxt"></span></footer>
+    </div>
+  </div>
+</div>
 
 <nav class="tabbar" id="tabbar" aria-label="মেনু">
-  <a href="#/" data-r="home">সার্ভিস</a>
-  <a href="#/orders" data-r="orders">অর্ডার</a>
-  <a href="#/wallet" data-r="wallet">ওয়ালেট</a>
+  <a href="#/" data-r="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>হোম</a>
+  <a href="#/services" data-r="services"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 7H6"/></svg>অর্ডার</a>
+  <a href="#/orders" data-r="orders"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>আমার অর্ডার</a>
+  <a href="#/wallet" data-r="wallet"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14" r="1"/></svg>ওয়ালেট</a>
 </nav>
-
-<footer class="wrap"><span id="footTxt"></span></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
+<script src="js/ads-config.js"></script>
 <script src="js/common.js"></script>
+<script src="js/ads.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
