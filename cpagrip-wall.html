@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>CPAGrip Offers</title>
+<style>
+  :root{--fg:#fff;--sub:rgba(255,255,255,.8);--box:rgba(8,12,60,.55);--bd:rgba(120,140,255,.25);--sp:rgba(255,255,255,.2);--spt:#7c9cff;--err:#ffd0d0}
+  html[data-theme="light"]{--fg:#0f1b4d;--sub:rgba(15,27,77,.78);--box:rgba(255,255,255,.75);--bd:rgba(60,90,200,.22);--sp:rgba(15,27,77,.15);--spt:#2f5bff;--err:#b42318}
+  html,body{margin:0;padding:0;min-height:100%}
+  body{background:#02032a url('cpagrip-bg.webp') center/cover no-repeat fixed;color:var(--fg);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Bengali","Noto Sans Arabic",sans-serif}
+  html[data-theme="light"] body{background:linear-gradient(160deg,#f4f7ff 0%,#dfe8ff 55%,#e9e2ff 100%) fixed}
+  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 40px;text-align:center}
+  .ttl{font-size:22px;font-weight:800;margin:6px 0 4px}
+  .sub{font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:18px}
+  .box{background:var(--box);border:1px solid var(--bd);border-radius:18px;padding:18px 16px;
+       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .spin{width:34px;height:34px;border:4px solid var(--sp);border-top-color:var(--spt);border-radius:50%;margin:6px auto 12px;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .err{color:var(--err)}
+  .note{font-size:12px;color:var(--sub);margin-top:14px;line-height:1.7}
+</style>
+<script>
+  // ── অ্যাপ থেকে আসা: subid (ইউজার ID), lang (ভাষা), theme (light/dark) ──
+  var __uid = '', __lang = 'en', __theme = 'dark';
+  var I18N = {
+    en:{t:'CPAGrip Offers',s:'Complete offers — money is added to your EARNOVA balance automatically.',l:'Loading offers…',a:'Please open this page from the EARNOVA app.',n:'Offers can take a little while to complete. Keep VPN / Proxy off.'},
+    bn:{t:'CPAGrip অফার',s:'অফার সম্পন্ন করুন — টাকা আপনার EARNOVA ব্যালেন্সে নিজে থেকেই যোগ হবে।',l:'অফার লোড হচ্ছে…',a:'অনুগ্রহ করে EARNOVA অ্যাপ থেকে এই পেজ খুলুন।',n:'অফার সম্পূর্ণ হতে কিছুক্ষণ লাগতে পারে। VPN বা Proxy বন্ধ রাখুন।'},
+    ur:{t:'CPAGrip آفرز',s:'آفرز مکمل کریں — رقم خود بخود آپ کے EARNOVA بیلنس میں شامل ہو جائے گی۔',l:'آفرز لوڈ ہو رہے ہیں…',a:'براہ کرم یہ صفحہ EARNOVA ایپ سے کھولیں۔',n:'آفر مکمل ہونے میں کچھ وقت لگ سکتا ہے۔ VPN / Proxy بند رکھیں۔'},
+    hi:{t:'CPAGrip ऑफ़र',s:'ऑफ़र पूरे करें — पैसे अपने आप आपके EARNOVA बैलेंस में जुड़ जाएंगे।',l:'ऑफ़र लोड हो रहे हैं…',a:'कृपया यह पेज EARNOVA ऐप से खोलें।',n:'ऑफ़र पूरा होने में थोड़ा समय लग सकता है। VPN / Proxy बंद रखें।'},
+    ar:{t:'عروض CPAGrip',s:'أكمل العروض — تُضاف الأموال إلى رصيدك في EARNOVA تلقائيًا.',l:'جارٍ تحميل العروض…',a:'يرجى فتح هذه الصفحة من تطبيق EARNOVA.',n:'قد يستغرق إكمال العروض بعض الوقت. أبقِ VPN / Proxy متوقفًا.'},
+    fr:{t:'Offres CPAGrip',s:'Terminez les offres — l’argent est ajouté automatiquement à votre solde EARNOVA.',l:'Chargement des offres…',a:'Veuillez ouvrir cette page depuis l’application EARNOVA.',n:'Les offres peuvent mettre un peu de temps à se valider. Désactivez VPN / Proxy.'},
+    es:{t:'Ofertas CPAGrip',s:'Completa ofertas — el dinero se añade automáticamente a tu saldo EARNOVA.',l:'Cargando ofertas…',a:'Abre esta página desde la app EARNOVA.',n:'Las ofertas pueden tardar un poco en completarse. Mantén VPN / Proxy apagado.'},
+    id:{t:'Penawaran CPAGrip',s:'Selesaikan penawaran — uang otomatis masuk ke saldo EARNOVA Anda.',l:'Memuat penawaran…',a:'Silakan buka halaman ini dari aplikasi EARNOVA.',n:'Penawaran butuh waktu untuk selesai. Matikan VPN / Proxy.'},
+    tr:{t:'CPAGrip Teklifleri',s:'Teklifleri tamamlayın — para EARNOVA bakiyenize otomatik eklenir.',l:'Teklifler yükleniyor…',a:'Lütfen bu sayfayı EARNOVA uygulamasından açın.',n:'Tekliflerin tamamlanması biraz sürebilir. VPN / Proxy kapalı olsun.'},
+    pt:{t:'Ofertas CPAGrip',s:'Conclua as ofertas — o dinheiro é adicionado automaticamente ao seu saldo EARNOVA.',l:'Carregando ofertas…',a:'Abra esta página pelo aplicativo EARNOVA.',n:'As ofertas podem demorar um pouco para concluir. Mantenha VPN / Proxy desligado.'}
+  };
+  try {
+    var __q = new URLSearchParams(location.search);
+    __uid = (__q.get('subid') || __q.get('uid') || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 64);
+    var l = (__q.get('lang') || '').toLowerCase();
+    __lang = I18N[l] ? l : (I18N[(navigator.language||'en').slice(0,2)] ? (navigator.language||'en').slice(0,2) : 'en');
+    var th = (__q.get('theme') || '').toLowerCase();
+    if (th !== 'light' && th !== 'dark') th = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    __theme = th;
+  } catch (e) {}
+  var __de = document.documentElement;
+  __de.setAttribute('data-theme', __theme);
+  __de.setAttribute('lang', __lang);
+  __de.setAttribute('dir', (__lang === 'ur' || __lang === 'ar') ? 'rtl' : 'ltr');
+  // ID থাকলেই কেবল CPAGrip স্ক্রিপ্ট চালু (ID ছাড়া অফার হলে টাকা যোগ হবে না)
+  if (__uid) {
+    document.write('<scr' + 'ipt type="text/javascript" src="https://singingfiles.com/script_include.php?id=1896627&tracking_id='
+      + encodeURIComponent(__uid) + '"></scr' + 'ipt>');
+  }
+</script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="ttl" id="ttl">🔥</div>
+    <div class="sub" id="sub"></div>
+    <div class="box">
+      <div class="spin" id="spin"></div>
+      <div id="msg"></div>
+    </div>
+    <div class="note" id="note"></div>
+  </div>
+<script>
+  var D = I18N[__lang];
+  document.title = D.t;
+  document.getElementById('ttl').textContent = '🔥 ' + D.t;
+  document.getElementById('sub').textContent = D.s;
+  document.getElementById('note').textContent = D.n;
+  var m = document.getElementById('msg');
+  if (__uid) { m.textContent = D.l; }
+  else { document.getElementById('spin').style.display = 'none'; m.className = 'err'; m.textContent = D.a; }
+</script>
+</body>
+</html>
